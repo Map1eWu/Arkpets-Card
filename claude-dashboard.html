@@ -224,8 +224,8 @@ body {
   gap: 16px;
 }
 
-/* 左右栏分隔线：1px 视觉 + 9px 隐形命中区，可拖动调宽，双击复位 */
-#paneDivider {
+/* 栏间分隔线：1px 视觉 + 9px 隐形命中区，可拖动调宽，双击复位 */
+.pane-divider {
   width: 1px;
   flex-shrink: 0;
   background: var(--border);
@@ -234,7 +234,7 @@ body {
   z-index: 3;
 }
 
-#paneDivider::before {
+.pane-divider::before {
   content: '';
   position: absolute;
   left: -4px;
@@ -243,7 +243,7 @@ body {
   bottom: 0;
 }
 
-#paneDivider:hover, #paneDivider.dragging { background: var(--accent); }
+.pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
 
 /* 栏位拖拽手柄：悬停栏内浮现于右上角 */
 .pane { position: relative; }
@@ -366,7 +366,6 @@ body {
   gap: 8px;
   padding: 12px 14px;
   overflow: hidden;
-  border-right: 1px solid transparent; /* 占位，无视觉线 */
 }
 
 .gpu-header {
@@ -830,8 +829,7 @@ body {
     </div>
   </div>
 
-  <!-- 可拖动分隔线 -->
-  <div id="paneDivider" title="拖动调整宽度，双击复位"></div>
+  <!-- 分隔线由 syncDividers() 在每两栏之间自动生成 -->
 
   <!-- Middle: GPU 监控 -->
   <div class="gpu pane" id="paneGpu">
@@ -1064,58 +1062,92 @@ function fetchGpu() {
 fetchGpu();
 setInterval(fetchGpu, 5000);
 
-// ── 左栏宽度拖拽（setPointerCapture 现代写法）───────────────
-const LEFT_W_KEY = 'claude-dash-leftw';
-const leftPane   = document.querySelector('.left');
-const divider    = document.getElementById('paneDivider');
+// ── 栏间分隔线系统：每两栏之间一条，拖动调整相邻的固定宽度栏 ──
+const PANE_W_KEY   = 'claude-dash-pane-widths';
+const PANE_DEFAULT = { paneTime: 210, paneGpu: 200 };   // 固定宽度栏的默认宽（弹性栏不在此表）
+const mainBox = document.querySelector('.main');
+const panes   = () => [...mainBox.querySelectorAll(':scope > .pane')];
+const isFixedPane = p => p && getComputedStyle(p).flexGrow === '0';
 
-const savedLeftW = parseInt(localStorage.getItem(LEFT_W_KEY), 10);
-if (savedLeftW) leftPane.style.width = savedLeftW + 'px';
+// 恢复保存的栏宽
+try {
+  const ws = JSON.parse(localStorage.getItem(PANE_W_KEY)) || {};
+  Object.entries(ws).forEach(([id, w]) => {
+    const p = document.getElementById(id);
+    if (p && PANE_DEFAULT[id]) p.style.width = w + 'px';
+  });
+} catch {}
 
-divider.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  const startX = e.clientX;
-  const startW = leftPane.offsetWidth;
-  // 卡片整体被 scale 过，屏幕位移要除以缩放系数还原成卡片坐标
-  const sc = document.getElementById('card').getBoundingClientRect().width / 800 || 1;
-
-  divider.setPointerCapture(e.pointerId);   // 捕获后甩出 1px 线外照样收到事件
-  divider.classList.add('dragging');
-  document.body.style.userSelect = 'none';
-
-  // 栏位可能被调换：分隔线拖动方向取决于固定宽度栏在分隔线的哪一侧
-  const sign = document.querySelector('.main > .pane') === leftPane ? 1 : -1;
-  const onMove = ev => {
-    const w = Math.max(170, Math.min(320, startW + sign * (ev.clientX - startX) / sc));
-    leftPane.style.width = w + 'px';
-  };
-  divider.addEventListener('pointermove', onMove);
-  divider.addEventListener('pointerup', () => {
-    divider.removeEventListener('pointermove', onMove);
-    divider.classList.remove('dragging');
-    document.body.style.userSelect = '';
-    localStorage.setItem(LEFT_W_KEY, leftPane.offsetWidth);
-    window.petCheckFloor?.();   // 布局变了，校验年脚下的线还在不在
-  }, { once: true });
-});
-
-// 双击复位默认宽度
-divider.addEventListener('dblclick', () => {
-  leftPane.style.width = '210px';
-  localStorage.removeItem(LEFT_W_KEY);
-  window.petCheckFloor?.();
-});
-
-// ── 栏位拖拽调换（按住 ☰ 拖到另一栏，实时换位；支持后续加栏）──
-const PANE_KEY = 'claude-dash-pane-order';
-const mainBox  = document.querySelector('.main');
-const panes    = () => [...mainBox.querySelectorAll(':scope > .pane')];
-
-// 分隔线始终保持在第 1、2 栏之间
-function placeDivider() {
-  const second = panes()[1];
-  if (second) mainBox.insertBefore(divider, second);
+function savePaneWidths() {
+  const ws = {};
+  panes().forEach(p => { if (PANE_DEFAULT[p.id]) ws[p.id] = p.offsetWidth; });
+  localStorage.setItem(PANE_W_KEY, JSON.stringify(ws));
 }
+
+function makeDivider() {
+  const d = document.createElement('div');
+  d.className = 'pane-divider';
+  d.title = '拖动调整宽度，双击复位';
+
+  // 这条分隔线负责调整的栏：优先左邻的固定宽度栏；左邻是弹性栏则调右邻（方向取反）
+  const resizeTarget = () => {
+    const prev = d.previousElementSibling, next = d.nextElementSibling;
+    return isFixedPane(prev) ? { pane: prev, sign: 1 }
+         : isFixedPane(next) ? { pane: next, sign: -1 }
+         : null;
+  };
+
+  d.addEventListener('pointerdown', e => {
+    const t = resizeTarget();
+    if (!t) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = t.pane.offsetWidth;
+    // 弹性栏至少保留 180px
+    const flexPane = panes().find(p => !isFixedPane(p));
+    const maxW = startW + (flexPane ? flexPane.offsetWidth - 180 : 100);
+    // 卡片整体被 scale 过，屏幕位移要除以缩放系数还原成卡片坐标
+    const sc = document.getElementById('card').getBoundingClientRect().width / 800 || 1;
+
+    d.setPointerCapture(e.pointerId);   // 捕获后甩出 1px 线外照样收到事件
+    d.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+
+    const onMove = ev => {
+      const w = Math.max(150, Math.min(maxW, startW + t.sign * (ev.clientX - startX) / sc));
+      t.pane.style.width = w + 'px';
+    };
+    d.addEventListener('pointermove', onMove);
+    d.addEventListener('pointerup', () => {
+      d.removeEventListener('pointermove', onMove);
+      d.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      savePaneWidths();
+      window.petCheckFloor?.();   // 布局变了，校验年脚下的线还在不在
+    }, { once: true });
+  });
+
+  // 双击复位该栏默认宽度
+  d.addEventListener('dblclick', () => {
+    const t = resizeTarget();
+    if (t && PANE_DEFAULT[t.pane.id]) {
+      t.pane.style.width = PANE_DEFAULT[t.pane.id] + 'px';
+      savePaneWidths();
+      window.petCheckFloor?.();
+    }
+  });
+
+  return d;
+}
+
+// 重建分隔线：每两个相邻栏之间一条
+function syncDividers() {
+  mainBox.querySelectorAll(':scope > .pane-divider').forEach(d => d.remove());
+  panes().slice(0, -1).forEach(p => p.after(makeDivider()));
+}
+
+// ── 栏位拖拽调换（按住 ☰ 拖到另一栏，实时换位）──────────────
+const PANE_KEY = 'claude-dash-pane-order';
 
 // 恢复保存的栏序
 try {
@@ -1127,9 +1159,9 @@ try {
       const p = document.getElementById(id);
       if (p) mainBox.appendChild(p);
     });
-    placeDivider();
   }
 } catch {}
+syncDividers();
 
 document.querySelectorAll('.pane-grip').forEach(grip => {
   grip.addEventListener('pointerdown', e => {
@@ -1158,7 +1190,7 @@ document.querySelectorAll('.pane-grip').forEach(grip => {
           // （after/before = 先移除再插入）捕获即失效，pointerup 就收不到了
           if (movingRight) src.before(target);
           else src.after(target);
-          placeDivider();
+          syncDividers();
         }
       }
     };
