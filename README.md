@@ -12,6 +12,8 @@
 - 待办事项：勾选完成、hover 删除、点击时间内联编辑（自由文本）、底部快捷添加，数据存于 localStorage
 - Claude Code 用量：5 小时 / 7 天双窗口用量条与重置倒计时，数据来自 claude.ai 服务端真实接口
 - 深浅色主题：右上角齿轮打开设置，可选浅色 / 深色 / 跟随时间（19:00–7:00 自动深色）
+- 用量报警：5 小时额度 ≥80% 时，年会自己走到用量条上、坐在填充末端"值班"；≥95% 躺平，额度重置后庆祝离岗
+- 开机自启：设置栏一键开关（macOS launchd）
 
 **桌宠「年」**
 
@@ -27,14 +29,15 @@
 # 1. 配置
 cp .env.example .env   # 按需填写 ACCOUNT_LABEL 等
 
-# 2. 启动本地服务
-node server.js
+# 2. 一键启动（拉起 server + Chrome 应用模式无边框窗口）
+./start.sh
 
-# 3. 打开面板
-# http://localhost:3000/claude-dashboard.html
+# 或手动：node server.js 后访问 http://localhost:3000
 ```
 
 无构建步骤，`server.js` 仅依赖 Node 内置模块。
+
+**开机自启（macOS）**：设置栏（右上角齿轮）里打开"开机自启"开关即可——由本地 server 在 `~/Library/LaunchAgents/` 写入 launchd 配置，登录时自动执行 `start.sh`；关闭开关即移除，不留残留。
 
 ## 用量数据更新（macOS）
 

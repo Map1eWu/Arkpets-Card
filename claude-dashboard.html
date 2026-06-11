@@ -173,6 +173,36 @@ body {
   font-weight: 600;
 }
 
+.settings-label-gap { margin-left: 10px; }
+
+/* 开关 */
+.switch {
+  width: 34px;
+  height: 18px;
+  border: none;
+  border-radius: 9px;
+  background: var(--track);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: left 0.2s;
+}
+
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 18px; }
+.switch.disabled { opacity: 0.4; cursor: default; }
+
 /* ── Main ── */
 .main {
   display: flex;
@@ -641,6 +671,8 @@ body {
     <button data-mode="dark">深色</button>
     <button data-mode="auto">跟随时间</button>
   </div>
+  <span class="settings-label settings-label-gap">开机自启</span>
+  <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
 </div>
 
 <!-- Main -->
@@ -807,6 +839,30 @@ document.getElementById('settingsGear').addEventListener('click', () => {
 });
 
 applyTheme();
+
+// ── 开机自启开关（由 server.js 的 /api/autostart 落地）──────
+const autostartToggle = document.getElementById('autostartToggle');
+
+function refreshAutostart() {
+  fetch('/api/autostart')
+    .then(r => r.json())
+    .then(d => {
+      autostartToggle.classList.toggle('on', !!d.enabled);
+      autostartToggle.classList.remove('disabled');
+    })
+    .catch(() => autostartToggle.classList.add('disabled'));  // 非本地 server 环境下不可用
+}
+
+autostartToggle.addEventListener('click', () => {
+  if (autostartToggle.classList.contains('disabled')) return;
+  const on = !autostartToggle.classList.contains('on');
+  fetch('/api/autostart?set=' + (on ? 'on' : 'off'))
+    .then(r => r.json())
+    .then(d => autostartToggle.classList.toggle('on', !!d.enabled))
+    .catch(() => {});
+});
+
+refreshAutostart();
 
 // ── Clock & Date ───────────────────────────────────────────
 function pad(n) { return String(n).padStart(2,'0'); }
@@ -1150,10 +1206,10 @@ const CARD_W    = 800;
 const CARD_H    = 480;
 const FLOOR_Y   = 0;           // 距卡片底部的地面高度（px），与 footer 对齐
 const INIT_X    = 675;          // 初始 x 位置（px，0=左 800=右）
-const WALK_SPD  = 45;           // px/s
+const WALK_SPD  = 35;           // px/s
 const X_MIN     = 50;
 const X_MAX     = 750;
-const SCALE      = 0.4;
+const SCALE      = 0.3;
 const JUMP_RANGE = 65;         // Sit 时向上/下寻找横线的最大距离（px）
 const SIT_MIN_H  = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
 const GRAVITY    = 1200;       // 拖拽释放后的下落加速度（px/s²）

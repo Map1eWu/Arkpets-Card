@@ -50,6 +50,48 @@ function handleRefresh(res) {
   });
 }
 
+// ── /api/autostart ────────────────────────────────────────────
+// 开机自启 = ~/Library/LaunchAgents 下是否存在 plist（登录时由 macOS 加载）
+// on=写入（下次登录生效） off=删除 不带参数=查询状态
+const os = require('os');
+const PLIST_LABEL = 'com.claude-card.autostart';
+const PLIST_PATH  = path.join(os.homedir(), 'Library', 'LaunchAgents', PLIST_LABEL + '.plist');
+
+function plistContent() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${PLIST_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>${path.join(STATIC, 'start.sh')}</string></array>
+  <key>EnvironmentVariables</key>
+  <dict><key>NODE_BIN</key><string>${process.execPath}</string></dict>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+`;
+}
+
+function handleAutostart(req, res) {
+  const set = new URL(req.url, 'http://localhost').searchParams.get('set');
+  const send = (code, obj) => {
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(obj));
+  };
+  try {
+    if (set === 'on') {
+      fs.mkdirSync(path.dirname(PLIST_PATH), { recursive: true });
+      fs.writeFileSync(PLIST_PATH, plistContent(), 'utf8');
+      console.log(`[autostart] 已写入 ${PLIST_PATH}`);
+    } else if (set === 'off') {
+      if (fs.existsSync(PLIST_PATH)) fs.unlinkSync(PLIST_PATH);
+      console.log(`[autostart] 已移除 ${PLIST_PATH}`);
+    }
+    send(200, { ok: true, enabled: fs.existsSync(PLIST_PATH) });
+  } catch (e) {
+    send(500, { ok: false, error: e.message });
+  }
+}
+
 // ── 静态文件 ──────────────────────────────────────────────────
 function handleStatic(req, res) {
   // 去掉 query string，并解码 %23 → # 等编码字符
@@ -86,6 +128,8 @@ const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
   if (urlPath === '/api/refresh') {
     handleRefresh(res);
+  } else if (urlPath === '/api/autostart') {
+    handleAutostart(req, res);
   } else {
     handleStatic(req, res);
   }
