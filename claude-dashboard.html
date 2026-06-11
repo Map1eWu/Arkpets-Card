@@ -18,6 +18,23 @@
   --done:         #5A7A5A;
 }
 
+/* 深色主题（documentElement 的 data-theme 由 applyTheme() 控制） */
+:root[data-theme="dark"] {
+  --bg:           #1B1713;
+  --card:         #262019;
+  --border:       #3B3328;
+  --text:         #EAE3D8;
+  --muted:        #94887A;
+  --accent:       #D57E4E;
+  --accent-dim:   #5C3A24;
+  --track:        #3B3328;
+  --surface:      #211C16;
+  --done:         #6E8E6E;
+}
+
+/* 单色图标在深色下反相（彩色 logo 不加此类） */
+[data-theme="dark"] .mono-ico { filter: invert(0.78); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -91,6 +108,69 @@ body {
   font-size: 12px;
   color: var(--muted);
   letter-spacing: 0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-gear {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, transform 0.3s;
+}
+
+.settings-gear:hover { opacity: 1; transform: rotate(45deg); }
+
+/* 设置栏：box-shadow 代替 border，避免被桌宠的横线扫描误认成可站立的线 */
+#settingsBar {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  right: 0;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 4;
+}
+
+#settingsBar.open { display: flex; }
+
+.settings-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.seg {
+  display: flex;
+  background: var(--track);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg button {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.seg button.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* ── Main ── */
@@ -439,6 +519,12 @@ body {
   letter-spacing: 0.02em;
 }
 
+.usage-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .usage-refresh {
   display: flex;
   align-items: center;
@@ -540,8 +626,21 @@ body {
     <img src="img/claude-color.svg" width="22" height="22" alt="Claude">
     <span class="logo-text">Claude</span>
   </div>
-  <div class="header-date" id="headerDate"></div>
+  <div class="header-right">
+    <div class="header-date" id="headerDate"></div>
+    <img src="img/setting.svg" class="mono-ico settings-gear" id="settingsGear" alt="设置">
+  </div>
 </header>
+
+<!-- 设置栏（点击右上角齿轮展开） -->
+<div id="settingsBar">
+  <span class="settings-label">主题</span>
+  <div class="seg" id="themeSeg">
+    <button data-mode="light">浅色</button>
+    <button data-mode="dark">深色</button>
+    <button data-mode="auto">跟随时间</button>
+  </div>
+</div>
 
 <!-- Main -->
 <div class="main">
@@ -596,9 +695,15 @@ body {
       <img src="img/claude-color.svg" width="13" height="13" alt="Claude">
       Claude Code 用量
     </div>
-    <div class="usage-refresh" id="refreshBtn" onclick="refreshUsage()">
-      <span class="usage-refresh-icon">↻</span>
-      <span id="refreshTime">--:--</span>
+    <div class="usage-actions">
+      <div class="usage-refresh" id="petResetBtn" title="重置桌宠位置" onclick="window.petReset && window.petReset()">
+        <span class="usage-refresh-icon">↺</span>
+        <span>年</span>
+      </div>
+      <div class="usage-refresh" id="refreshBtn" onclick="refreshUsage()">
+        <span class="usage-refresh-icon">↻</span>
+        <span id="refreshTime">--:--</span>
+      </div>
     </div>
   </div>
   <div class="usage-rows">
@@ -670,6 +775,39 @@ const WMO = {
   95: { icon:'⛈️',  desc:'雷暴' },
 };
 
+// ── 设置 & 主题 ────────────────────────────────────────────
+const THEME_KEY = 'claude-dash-theme';
+let themeMode = localStorage.getItem(THEME_KEY) || 'auto';  // 'light' | 'dark' | 'auto'
+
+function effectiveTheme() {
+  if (themeMode !== 'auto') return themeMode;
+  const h = new Date().getHours();
+  return (h >= 19 || h < 7) ? 'dark' : 'light';   // 19:00–7:00 深色
+}
+
+function applyTheme() {
+  const t = effectiveTheme();
+  if (document.documentElement.dataset.theme !== t) {
+    document.documentElement.dataset.theme = t;
+  }
+  document.querySelectorAll('#themeSeg button').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === themeMode));
+}
+
+document.querySelectorAll('#themeSeg button').forEach(b => {
+  b.addEventListener('click', () => {
+    themeMode = b.dataset.mode;
+    localStorage.setItem(THEME_KEY, themeMode);
+    applyTheme();
+  });
+});
+
+document.getElementById('settingsGear').addEventListener('click', () => {
+  document.getElementById('settingsBar').classList.toggle('open');
+});
+
+applyTheme();
+
 // ── Clock & Date ───────────────────────────────────────────
 function pad(n) { return String(n).padStart(2,'0'); }
 
@@ -685,6 +823,9 @@ function updateClock() {
   document.getElementById('headerDate').textContent =
     `${year}年${month}月${day}日`;
   document.getElementById('weekday').textContent = WEEKDAYS[now.getDay()];
+
+  // 跟随时间模式下检查是否需要切换主题
+  if (themeMode === 'auto') applyTheme();
 }
 
 updateClock();
@@ -706,8 +847,8 @@ function renderWeather(data) {
     <div class="weather-details">
       <div class="weather-detail">↑ <span class="val">${Math.round(d.temperature_2m_max[0])}°</span></div>
       <div class="weather-detail">↓ <span class="val">${Math.round(d.temperature_2m_min[0])}°</span></div>
-      <div class="weather-detail"><img src="img/shuikushuiwei.svg" width="12" height="12" alt="湿度"> <span class="val">${c.relativehumidity_2m}%</span></div>
-      <div class="weather-detail"><img src="img/fengsu.svg" width="12" height="12" alt="风速"> <span class="val">${Math.round(c.windspeed_10m)}km/h</span></div>
+      <div class="weather-detail"><img src="img/shuikushuiwei.svg" class="mono-ico" width="12" height="12" alt="湿度"> <span class="val">${c.relativehumidity_2m}%</span></div>
+      <div class="weather-detail"><img src="img/fengsu.svg" class="mono-ico" width="12" height="12" alt="风速"> <span class="val">${Math.round(c.windspeed_10m)}km/h</span></div>
     </div>
   `;
   // 天气块高度变化会让左栏重新居中、分隔线移位 → 通知桌宠校验楼层
@@ -1218,6 +1359,47 @@ async function initPet() {
     if (!ok) { mode = 'fall'; fallVy = 0; }
   };
 
+  // ── 位置持久化（sessionStorage：F5 保留，关标签页自动重置）──
+  const PET_KEY = 'claude-dash-pet';
+  let lastSave = 0;
+
+  function savePetState(now) {
+    if (mode !== 'auto' || now - lastSave < 2) return;  // 2 秒节流，仅自主状态下保存
+    lastSave = now;
+    sessionStorage.setItem(PET_KEY, JSON.stringify({
+      x: skeleton.x / PR, floorY: currentFloorY,
+      xMin: currentXMin, xMax: currentXMax,
+      anim: curAnim, dir,
+    }));
+  }
+
+  function restorePetState() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(PET_KEY));
+      if (!s) return;
+      skeleton.x    = s.x * PR;
+      currentFloorY = s.floorY;
+      skeleton.y    = currentFloorY * PR;
+      currentXMin   = s.xMin;
+      currentXMax   = s.xMax;
+      dir = s.dir || -1;
+      if (s.anim && has(s.anim) && s.anim !== 'Interact') {
+        curAnim = s.anim;
+        state.setAnimation(0, curAnim, true);
+      }
+    } catch {}
+  }
+
+  // 手动重置（用量栏 ↺ 按钮调用）：回到出生点
+  window.petReset = () => {
+    sessionStorage.removeItem(PET_KEY);
+    mode = 'auto'; fallVy = 0; dragStart = null;
+    currentFloorY = FLOOR_Y; currentXMin = X_MIN; currentXMax = X_MAX;
+    skeleton.x = INIT_X * PR; skeleton.y = FLOOR_Y * PR;
+    dir = -1; curAnim = 'Relax';
+    state.setAnimation(0, 'Relax', true);
+  };
+
   // ── 鼠标交互：悬停检测 / 点击 Interact / 拖拽抛落 ──────────
   // 每帧渲染后读鼠标位置 1×1 像素的 alpha，悬在年的像素上才打开 pointer-events
   function updateHover() {
@@ -1346,8 +1528,14 @@ async function initPet() {
     if (mode === 'drag') canvas.style.pointerEvents = 'auto';
     else updateHover();
 
+    savePetState(now);
+
     requestAnimationFrame(render);
   }
+
+  // 恢复上次位置（F5 后），并校验该楼层的线是否仍然存在
+  restorePetState();
+  window.petCheckFloor();
 
   render();
   console.log('✅ 年 加载完成，scale =', SCALE, '  初始 floor_y =', currentFloorY);
