@@ -11,7 +11,7 @@
  * 用法：node update-usage.js
  *
  * cron 每 5 分钟：
- *   *\/5 * * * * cd /Users/maple/Desktop/Maple/project/card && node update-usage.js
+ *   *\/5 * * * * cd /path/to/card && node update-usage.js
  */
 
 const fs   = require('fs');
