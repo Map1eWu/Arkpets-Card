@@ -267,6 +267,29 @@ body {
 .pane:hover .pane-grip { opacity: 0.55; }
 .pane-grip:hover { opacity: 1 !important; background: var(--card); }
 
+/* 栏隐藏按钮：☰ 左侧 */
+.pane-close {
+  position: absolute;
+  top: 5px;
+  right: 28px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 3px 5px;
+  border-radius: 4px;
+  user-select: none;
+  z-index: 4;
+}
+
+.pane:hover .pane-close { opacity: 0.55; }
+.pane-close:hover { opacity: 1 !important; color: var(--accent); background: var(--card); }
+
+/* 弹性栏被隐藏时，最后一个可见栏填满剩余宽度 */
+.pane-fill { flex: 1 1 auto !important; width: auto !important; }
+
 /* 拖拽中的栏 */
 .pane.drag-src {
   opacity: 0.55;
@@ -807,6 +830,12 @@ body {
     <button data-mode="dark">深色</button>
     <button data-mode="auto">跟随时间</button>
   </div>
+  <span class="settings-label settings-label-gap">栏目</span>
+  <div class="seg" id="paneSeg">
+    <button data-pane="paneTime">时间</button>
+    <button data-pane="paneGpu">GPU</button>
+    <button data-pane="paneTodo">待办</button>
+  </div>
   <span class="settings-label settings-label-gap">开机自启</span>
   <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
 </div>
@@ -816,6 +845,7 @@ body {
 
   <!-- Left: Time + Weather -->
   <div class="left pane" id="paneTime">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
     <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="time-block">
       <div class="time-display" id="clock">--:--</div>
@@ -833,6 +863,7 @@ body {
 
   <!-- Middle: GPU 监控 -->
   <div class="gpu pane" id="paneGpu">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
     <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="gpu-header">
       <span class="gpu-dot" id="gpuDot"></span>
@@ -845,6 +876,7 @@ body {
 
   <!-- Right: Todo -->
   <div class="right pane" id="paneTodo">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
     <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="todo-header">
       <div class="todo-title">
@@ -1053,6 +1085,9 @@ function renderGpu(d) {
 }
 
 function fetchGpu() {
+  // GPU 栏隐藏时不拉取；server 端 30 秒无请求会自动停止 ssh 轮询
+  const pane = document.getElementById('paneGpu');
+  if (pane && pane.style.display === 'none') return;
   fetch('/api/gpu')
     .then(r => r.json())
     .then(renderGpu)
@@ -1090,10 +1125,18 @@ function makeDivider() {
   d.title = '拖动调整宽度，双击复位';
 
   // 这条分隔线负责调整的栏：优先左邻的固定宽度栏；左邻是弹性栏则调右邻（方向取反）
+  // 相邻元素可能是被隐藏的栏（display:none），需跳过
+  const visSibling = (el, dirProp) => {
+    let n = el[dirProp];
+    while (n && (n.style.display === 'none' || n.classList.contains('pane-divider'))) n = n[dirProp];
+    return n;
+  };
   const resizeTarget = () => {
-    const prev = d.previousElementSibling, next = d.nextElementSibling;
-    return isFixedPane(prev) ? { pane: prev, sign: 1 }
-         : isFixedPane(next) ? { pane: next, sign: -1 }
+    const prev = visSibling(d, 'previousElementSibling');
+    const next = visSibling(d, 'nextElementSibling');
+    const fixedNotFill = p => isFixedPane(p) && !p.classList.contains('pane-fill');
+    return fixedNotFill(prev) ? { pane: prev, sign: 1 }
+         : fixedNotFill(next) ? { pane: next, sign: -1 }
          : null;
   };
 
@@ -1140,10 +1183,11 @@ function makeDivider() {
   return d;
 }
 
-// 重建分隔线：每两个相邻栏之间一条
+// 重建分隔线：每两个相邻【可见】栏之间一条
 function syncDividers() {
   mainBox.querySelectorAll(':scope > .pane-divider').forEach(d => d.remove());
-  panes().slice(0, -1).forEach(p => p.after(makeDivider()));
+  panes().filter(p => p.style.display !== 'none')
+         .slice(0, -1).forEach(p => p.after(makeDivider()));
 }
 
 // ── 栏位拖拽调换（按住 ☰ 拖到另一栏，实时换位）──────────────
@@ -1161,7 +1205,49 @@ try {
     });
   }
 } catch {}
-syncDividers();
+
+// ── 栏目显示/隐藏（× 隐藏，设置栏「栏目」开关恢复）──────────
+const PANE_HIDE_KEY = 'claude-dash-pane-hidden';
+let hiddenPanes = new Set();
+try { hiddenPanes = new Set(JSON.parse(localStorage.getItem(PANE_HIDE_KEY)) || []); } catch {}
+
+function applyPaneVisibility() {
+  const all = panes();
+  all.forEach(p => {
+    p.style.display = hiddenPanes.has(p.id) ? 'none' : '';
+    p.classList.remove('pane-fill');
+  });
+  // 可见栏中没有弹性栏时（待办被隐藏），让最后一个可见栏填满
+  const visible = all.filter(p => !hiddenPanes.has(p.id));
+  if (visible.length && visible.every(p => getComputedStyle(p).flexGrow === '0')) {
+    visible[visible.length - 1].classList.add('pane-fill');
+  }
+  // 同步设置栏按钮态
+  document.querySelectorAll('#paneSeg button').forEach(b =>
+    b.classList.toggle('active', !hiddenPanes.has(b.dataset.pane)));
+  localStorage.setItem(PANE_HIDE_KEY, JSON.stringify([...hiddenPanes]));
+  syncDividers();
+  window.petCheckFloor?.();
+}
+
+function hidePane(id) {
+  const visible = panes().filter(p => !hiddenPanes.has(p.id));
+  if (visible.length <= 1) return;   // 至少保留一栏
+  hiddenPanes.add(id);
+  applyPaneVisibility();
+}
+
+document.querySelectorAll('.pane-close').forEach(btn =>
+  btn.addEventListener('click', () => hidePane(btn.closest('.pane').id)));
+
+document.querySelectorAll('#paneSeg button').forEach(b =>
+  b.addEventListener('click', () => {
+    const id = b.dataset.pane;
+    if (hiddenPanes.has(id)) { hiddenPanes.delete(id); applyPaneVisibility(); }
+    else hidePane(id);
+  }));
+
+applyPaneVisibility();
 
 document.querySelectorAll('.pane-grip').forEach(grip => {
   grip.addEventListener('pointerdown', e => {
