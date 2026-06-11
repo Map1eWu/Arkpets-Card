@@ -1072,7 +1072,7 @@ applyTheme();
 const autostartToggle = document.getElementById('autostartToggle');
 
 function refreshAutostart() {
-  fetch('/api/autostart')
+  fetch('/api/autostart', { headers: { 'X-Card': '1' } })
     .then(r => r.json())
     .then(d => {
       autostartToggle.classList.toggle('on', !!d.enabled);
@@ -1084,7 +1084,7 @@ function refreshAutostart() {
 autostartToggle.addEventListener('click', () => {
   if (autostartToggle.classList.contains('disabled')) return;
   const on = !autostartToggle.classList.contains('on');
-  fetch('/api/autostart?set=' + (on ? 'on' : 'off'))
+  fetch('/api/autostart?set=' + (on ? 'on' : 'off'), { headers: { 'X-Card': '1' } })
     .then(r => r.json())
     .then(d => autostartToggle.classList.toggle('on', !!d.enabled))
     .catch(() => {});
@@ -1685,8 +1685,8 @@ function refreshUsage() {
 
   // 开始旋转（持续到完成）
   btn.classList.add('spinning');
-  // curl -v http://localhost:3000/api/refresh
-  fetch('/api/refresh')
+  // 带副作用的接口需 X-Card 头（防本地 CSRF，见 server.js）
+  fetch('/api/refresh', { headers: { 'X-Card': '1' } })
     .then(r => r.json())
     .then(result => {
       if (!result.ok) throw new Error(result.error || '更新失败');

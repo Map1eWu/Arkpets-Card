@@ -44,7 +44,6 @@ function handleRefresh(res) {
     const body = JSON.stringify({ ok, code, output: stdout, error: stderr });
     res.writeHead(ok ? 200 : 500, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
     });
     res.end(body);
   });
@@ -171,7 +170,12 @@ function handleAutostart(req, res) {
 // ── 静态文件 ──────────────────────────────────────────────────
 function handleStatic(req, res) {
   // 去掉 query string，并解码 %23 → # 等编码字符
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    res.writeHead(400); res.end('Bad Request'); return;   // 畸形编码不许打崩服务
+  }
   if (urlPath === '/' || urlPath === '') urlPath = '/claude-dashboard.html';
 
   const filePath = path.join(STATIC, urlPath);
@@ -202,9 +206,16 @@ const server = http.createServer((req, res) => {
   }
 
   const urlPath = req.url.split('?')[0];
+
+  // 有副作用的接口要求自定义头：跨站网页无法附加自定义头（会触发不被放行的
+  // CORS 预检），以此阻断本地 CSRF（恶意网页用 <img>/fetch 偷调 localhost）
+  const fromCard = req.headers['x-card'] === '1';
+
   if (urlPath === '/api/refresh') {
+    if (!fromCard) { res.writeHead(403); res.end('Forbidden'); return; }
     handleRefresh(res);
   } else if (urlPath === '/api/autostart') {
+    if (!fromCard) { res.writeHead(403); res.end('Forbidden'); return; }
     handleAutostart(req, res);
   } else if (urlPath === '/api/gpu') {
     handleGpu(res);
