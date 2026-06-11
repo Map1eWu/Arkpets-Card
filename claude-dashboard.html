@@ -755,14 +755,24 @@ function fetchWeather(lat, lon) {
     });
 }
 
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-    ()  => { document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">请允许位置权限</div>'; }
-  );
-} else {
-  document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">不支持定位</div>';
+// 首次定位成功后缓存坐标，供定时刷新复用（不重复请求定位权限）
+let _coords = null;
+
+function initWeather() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _coords = pos.coords;
+        fetchWeather(_coords.latitude, _coords.longitude);
+      },
+      ()  => { document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">请允许位置权限</div>'; }
+    );
+  } else {
+    document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">不支持定位</div>';
+  }
 }
+
+initWeather();
 
 // ── Todo ───────────────────────────────────────────────────
 const DEFAULT_TODOS = [
@@ -980,8 +990,12 @@ if (window.USAGE_DATA) {
   renderUsage(window.USAGE_DATA);
 }
 
-// Auto-refresh every 5 minutes
-setInterval(refreshUsage, 5 * 60 * 1000);
+// 每 5 分钟同时刷新用量与天气
+setInterval(() => {
+  refreshUsage();
+  if (_coords) fetchWeather(_coords.latitude, _coords.longitude);
+  else initWeather();   // 首次定位失败/未授权时重试
+}, 5 * 60 * 1000);
 </script>
 
 <script type="module">
