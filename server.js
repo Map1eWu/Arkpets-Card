@@ -63,7 +63,8 @@ function readEnv() {
   return env;
 }
 
-const GPU_HOST  = readEnv().GPU_HOST || '';
+// 支持逗号分隔多台服务器，上限 2 台
+const GPU_HOSTS = (readEnv().GPU_HOST || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 2);
 const GPU_QUERY = 'nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits';
 const SSH_OPTS  = [
   '-o', 'BatchMode=yes',          // 只走免密，不卡在密码提示
@@ -73,44 +74,53 @@ const SSH_OPTS  = [
   '-o', 'ControlPersist=120',
 ];
 
-let gpuCache = {
-  ok: false, host: GPU_HOST, gpus: [], updatedAt: null,
-  error: GPU_HOST ? '连接中…' : '未配置：请在 .env 中设置 GPU_HOST',
-};
+// 每台服务器独立缓存与轮询，一台离线不影响另一台
+const gpuCaches = GPU_HOSTS.map(h => ({
+  host: h, ok: false, gpus: [], updatedAt: null, error: '连接中…',
+}));
 let gpuLastReq = 0;
-let gpuPolling = false;
+const gpuPolling = new Set();
 
-function pollGpu() {
-  if (!GPU_HOST || gpuPolling) return;
-  gpuPolling = true;
-  const child = spawn('ssh', [...SSH_OPTS, GPU_HOST, GPU_QUERY]);
+function pollGpuHost(i) {
+  if (gpuPolling.has(i)) return;
+  gpuPolling.add(i);
+  const child = spawn('ssh', [...SSH_OPTS, GPU_HOSTS[i], GPU_QUERY]);
   let out = '', err = '';
   child.stdout.on('data', d => out += d);
   child.stderr.on('data', d => err += d);
   child.on('close', code => {
-    gpuPolling = false;
+    gpuPolling.delete(i);
     if (code === 0 && out.trim()) {
       const gpus = out.trim().split('\n').filter(Boolean).map(l => {
         const [index, name, util, memUsed, memTotal, temp] = l.split(',').map(s => s.trim());
         return { index: +index, name, util: +util, memUsed: +memUsed, memTotal: +memTotal, temp: +temp };
       });
-      gpuCache = { ok: true, host: GPU_HOST, gpus, updatedAt: new Date().toISOString(), error: null };
+      gpuCaches[i] = { host: GPU_HOSTS[i], ok: true, gpus, updatedAt: new Date().toISOString(), error: null };
     } else {
-      gpuCache = { ...gpuCache, ok: false, error: (err.trim().split('\n')[0] || `ssh 退出码 ${code}`) };
+      gpuCaches[i] = { ...gpuCaches[i], ok: false, error: (err.trim().split('\n')[0] || `ssh 退出码 ${code}`) };
     }
   });
-  child.on('error', e => { gpuPolling = false; gpuCache = { ...gpuCache, ok: false, error: e.message }; });
+  child.on('error', e => {
+    gpuPolling.delete(i);
+    gpuCaches[i] = { ...gpuCaches[i], ok: false, error: e.message };
+  });
 }
 
+function pollAllGpu() { GPU_HOSTS.forEach((_, i) => pollGpuHost(i)); }
+
 setInterval(() => {
-  if (Date.now() - gpuLastReq < 30000) pollGpu();   // 懒轮询：没人看就不打扰服务器
+  if (Date.now() - gpuLastReq < 30000) pollAllGpu();   // 懒轮询：没人看就不打扰服务器
 }, 5000);
 
 function handleGpu(res) {
   gpuLastReq = Date.now();
-  if (!gpuCache.updatedAt) pollGpu();   // 首个请求立即触发一次
+  if (GPU_HOSTS.length && !gpuCaches.some(c => c.updatedAt)) pollAllGpu();   // 首个请求立即触发
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(gpuCache));
+  res.end(JSON.stringify({
+    ok: GPU_HOSTS.length > 0,
+    error: GPU_HOSTS.length ? null : '未配置：请在 .env 中设置 GPU_HOST',
+    servers: gpuCaches,
+  }));
 }
 
 // ── /api/autostart ────────────────────────────────────────────

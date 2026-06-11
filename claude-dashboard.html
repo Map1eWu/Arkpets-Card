@@ -434,6 +434,26 @@ body {
   font-style: italic;
 }
 
+.gpu-server { display: flex; flex-direction: column; gap: 7px; }
+
+.gpu-server-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.gpu-server-head .gpu-dot { width: 6px; height: 6px; }
+
+.gpu-server-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gpu-card { display: flex; flex-direction: column; gap: 3px; }
 
 .gpu-row {
@@ -1051,33 +1071,49 @@ refreshAutostart();
 // ── GPU 监控（数据来自 server.js 的 /api/gpu，ssh + nvidia-smi）──
 let _gpuCount = -1;
 
+function gpuCardHtml(g) {
+  return `
+    <div class="gpu-card">
+      <div class="gpu-row">
+        <span class="gpu-idx">GPU${g.index}</span>
+        <span class="gpu-temp ${g.temp >= 80 ? 'hot' : ''}">${g.temp}°</span>
+        <span class="gpu-mem-text">${(g.memUsed / 1024).toFixed(1)}/${Math.round(g.memTotal / 1024)}G</span>
+      </div>
+      <div class="gpu-bar"><div class="gpu-fill util" style="width:${g.util}%"></div></div>
+      <div class="gpu-bar"><div class="gpu-fill mem" style="width:${(g.memUsed / g.memTotal * 100).toFixed(1)}%"></div></div>
+    </div>`;
+}
+
 function renderGpu(d) {
   const dot   = document.getElementById('gpuDot');
   const title = document.getElementById('gpuTitle');
   const list  = document.getElementById('gpuList');
+  const servers = d.servers || [];
 
-  if (!d.ok) {
+  if (!d.ok || servers.length === 0) {
     dot.className = 'gpu-dot off';
-    title.textContent = d.host || 'GPU';
+    title.textContent = 'GPU';
     list.innerHTML = `<div class="gpu-empty">${escHtml(d.error || '离线')}</div>`;
   } else {
-    dot.className = 'gpu-dot on';
-    title.textContent = d.host;
-    list.innerHTML = d.gpus.map(g => `
-      <div class="gpu-card">
-        <div class="gpu-row">
-          <span class="gpu-idx">GPU${g.index}</span>
-          <span class="gpu-temp ${g.temp >= 80 ? 'hot' : ''}">${g.temp}°</span>
-          <span class="gpu-mem-text">${(g.memUsed / 1024).toFixed(1)}/${Math.round(g.memTotal / 1024)}G</span>
-        </div>
-        <div class="gpu-bar"><div class="gpu-fill util" style="width:${g.util}%"></div></div>
-        <div class="gpu-bar"><div class="gpu-fill mem" style="width:${(g.memUsed / g.memTotal * 100).toFixed(1)}%"></div></div>
+    const onCount = servers.filter(s => s.ok).length;
+    dot.className = 'gpu-dot ' + (onCount > 0 ? 'on' : 'off');
+    // 单服务器：标题即主机名；多服务器：标题显示在线数，各组带小标题
+    title.textContent = servers.length === 1 ? servers[0].host : `${onCount}/${servers.length} 在线`;
+    list.innerHTML = servers.map(s => `
+      <div class="gpu-server">
+        ${servers.length > 1 ? `
+          <div class="gpu-server-head">
+            <span class="gpu-dot ${s.ok ? 'on' : 'off'}"></span>
+            <span class="gpu-server-name">${escHtml(s.host)}</span>
+          </div>` : ''}
+        ${s.ok ? s.gpus.map(gpuCardHtml).join('')
+               : `<div class="gpu-empty">${escHtml(s.error || '离线')}</div>`}
       </div>
     `).join('');
   }
 
-  // 梯子结构变化（卡数变化/掉线）时校验年的楼层
-  const count = d.ok ? d.gpus.length : 0;
+  // 梯子结构变化（卡数/在线服务器变化）时校验年的楼层
+  const count = servers.reduce((n, s) => n + (s.ok ? s.gpus.length : 0), 0);
   if (count !== _gpuCount) {
     _gpuCount = count;
     window.petCheckFloor?.();
