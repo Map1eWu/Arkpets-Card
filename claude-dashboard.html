@@ -999,9 +999,11 @@ document.querySelectorAll('.pane-grip').forEach(grip => {
         return ev.clientX >= r.left && ev.clientX <= r.right;
       });
       if (target) {
+        // 挪 target 而不是 src：被 pointer capture 的元素一旦从 DOM 移除
+        // （after/before = 先移除再插入）捕获即失效，pointerup 就收不到了
         const list = panes();
-        if (list.indexOf(src) < list.indexOf(target)) target.after(src);
-        else target.before(src);
+        if (list.indexOf(src) < list.indexOf(target)) src.before(target);
+        else src.after(target);
         placeDivider();
       }
     };
