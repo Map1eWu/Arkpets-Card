@@ -1455,11 +1455,12 @@ async function initPet() {
     return Math.max(line.left + 8, Math.min(line.right - 8, x));
   }
 
-  // 值班姿势：≥95% 躺平，否则坐下
+  // 值班姿势：≥95% 躺平（固定朝右），否则坐下
   function postAlarmPose() {
     alarm.state = 'posted';
     const want = (alarm.level >= 2 && has('Sleep')) ? 'Sleep'
                : has('Sit') ? 'Sit' : 'Relax';
+    if (want === 'Sleep') dir = 1;
     if (curAnim !== want) { state.setAnimation(0, want, true); curAnim = want; }
   }
 
@@ -1656,8 +1657,8 @@ async function initPet() {
       else if (skeleton.x > currentXMax * PR) { skeleton.x = currentXMax * PR; dir = -1; }
     }
 
-    // 朝向（Spine 默认面朝右，scaleX=-1 翻转）
-    skeleton.scaleX = dir > 0 ? 1 : -1;
+    // 朝向（Spine 默认面朝右，scaleX=-1 翻转）；睡觉固定朝右
+    skeleton.scaleX = (curAnim === 'Sleep' || dir > 0) ? 1 : -1;
 
     // 渲染
     gl.viewport(0, 0, CW, CH);
