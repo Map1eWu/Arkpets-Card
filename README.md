@@ -57,7 +57,7 @@ node server.js
 | `SCALE` | 0.4 | 桌宠缩放 |
 | `WALK_SPD` | 45 | 行走速度 px/s |
 | `JUMP_RANGE` | 65 | 坐下时搜索上下横线的范围 px |
-| `SIT_MIN_H` | 50 | 低于此高度的线不可坐（坐姿会穿模） |
+| `SIT_MIN_H` | 30 | 低于此高度的线不可坐（坐姿会穿模） |
 | `MAX_FLOOR_Y` | CARD_H−50 | 可落/可坐线的最大高度 |
 | `GRAVITY` | 1200 | 拖拽释放后的下落加速度 px/s² |
 

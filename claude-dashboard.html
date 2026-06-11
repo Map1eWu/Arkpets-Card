@@ -1000,7 +1000,7 @@ const X_MIN     = 50;
 const X_MAX     = 750;
 const SCALE      = 0.4;
 const JUMP_RANGE = 65;         // Sit 时向上/下寻找横线的最大距离（px）
-const SIT_MIN_H  = 50;         // currentFloorY 低于此值时禁止 Sit（空间不够）
+const SIT_MIN_H  = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
 const GRAVITY    = 1200;       // 拖拽释放后的下落加速度（px/s²）
 const CLICK_DIST = 4;          // 按下后移动距离小于此视为点击（px）
 const MAX_FLOOR_Y = CARD_H - 150; // 可落/可坐横线的最大高度，太高会越出卡片上界
@@ -1103,6 +1103,15 @@ async function initPet() {
     const cardRect = canvas.getBoundingClientRect();
     const sc = cardRect.width / CARD_W || 1;   // 卡片缩放系数补偿
     const lineMap  = new Map(); // floorY → {y, left, right}
+
+    const addLine = (screenY, elLeft, elRight) => {
+      const fy = CARD_H - Math.round(screenY / sc);
+      if (fy <= 2 || fy >= CARD_H - 2) return;
+      const ex = lineMap.get(fy);
+      if (ex) { ex.left = Math.min(ex.left, elLeft); ex.right = Math.max(ex.right, elRight); }
+      else      lineMap.set(fy, { y: fy, left: elLeft, right: elRight });
+    };
+
     document.querySelectorAll('*').forEach(el => {
       if (el === canvas) return;
       const style   = window.getComputedStyle(el);
@@ -1111,23 +1120,24 @@ async function initPet() {
       const elRight = Math.min(CARD_W, Math.round((rect.right - cardRect.left) / sc));
       if (elLeft >= elRight) return;
 
-      const addLine = screenY => {
-        const fy = CARD_H - Math.round(screenY / sc);
-        if (fy <= 2 || fy >= CARD_H - 2) return;
-        const ex = lineMap.get(fy);
-        if (ex) { ex.left = Math.min(ex.left, elLeft); ex.right = Math.max(ex.right, elRight); }
-        else      lineMap.set(fy, { y: fy, left: elLeft, right: elRight });
-      };
-
       // 透明 border 不算线（如 todo-item 的占位 border-bottom）
       const visible = c => {
         const m = String(c).match(/rgba?\(([^)]+)\)/);
         return m ? (m[1].split(',').length < 4 || parseFloat(m[1].split(',')[3]) > 0)
                  : c !== 'transparent';
       };
-      if (parseFloat(style.borderTopWidth)    > 0 && visible(style.borderTopColor))    addLine(rect.top    - cardRect.top);
-      if (parseFloat(style.borderBottomWidth) > 0 && visible(style.borderBottomColor)) addLine(rect.bottom - cardRect.top);
+      if (parseFloat(style.borderTopWidth)    > 0 && visible(style.borderTopColor))    addLine(rect.top    - cardRect.top, elLeft, elRight);
+      if (parseFloat(style.borderBottomWidth) > 0 && visible(style.borderBottomColor)) addLine(rect.bottom - cardRect.top, elLeft, elRight);
     });
+
+    // 用量条没有 border（纯背景色填充），单独把上边缘加入；左右边界取条本身的矩形
+    document.querySelectorAll('.usage-bar-wrap').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      const L = Math.max(0,      Math.round((rect.left  - cardRect.left) / sc));
+      const R = Math.min(CARD_W, Math.round((rect.right - cardRect.left) / sc));
+      if (L < R) addLine(rect.top - cardRect.top, L, R);
+    });
+
     return [...lineMap.values()].sort((a, b) => a.y - b.y);
   }
 
