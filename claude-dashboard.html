@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=800">
 <title>Claude Dashboard</title>
 <style>
+/* 浅色主题（默认） */
 :root {
   --bg:           #F5F0E8;
   --card:         #EDE5D8;
@@ -355,6 +356,93 @@ body {
   color: var(--muted);
   font-style: italic;
 }
+
+/* ── Middle Panel (GPU) ── */
+.gpu {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow: hidden;
+  border-right: 1px solid transparent; /* 占位，无视觉线 */
+}
+
+.gpu-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.gpu-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--track);
+  flex-shrink: 0;
+}
+
+.gpu-dot.on  { background: var(--done); }
+.gpu-dot.off { background: var(--accent); }
+
+.gpu-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gpu-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.gpu-list::-webkit-scrollbar { display: none; }
+
+.gpu-empty {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.gpu-card { display: flex; flex-direction: column; gap: 3px; }
+
+.gpu-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gpu-idx { font-weight: 600; color: var(--text); }
+.gpu-mem-text { margin-left: auto; }
+.gpu-temp.hot { color: var(--accent); font-weight: 600; }
+
+/* 利用率/显存条：4px 细条，同时是年的梯子（加入横线扫描） */
+.gpu-bar {
+  height: 4px;
+  background: var(--track);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gpu-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.gpu-fill.util { background: var(--accent); }
+.gpu-fill.mem  { background: var(--done); }
 
 /* ── Right Panel (Todo) ── */
 .right {
@@ -745,6 +833,18 @@ body {
   <!-- 可拖动分隔线 -->
   <div id="paneDivider" title="拖动调整宽度，双击复位"></div>
 
+  <!-- Middle: GPU 监控 -->
+  <div class="gpu pane" id="paneGpu">
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
+    <div class="gpu-header">
+      <span class="gpu-dot" id="gpuDot"></span>
+      <span class="gpu-title" id="gpuTitle">GPU</span>
+    </div>
+    <div class="gpu-list" id="gpuList">
+      <div class="gpu-empty">连接中…</div>
+    </div>
+  </div>
+
   <!-- Right: Todo -->
   <div class="right pane" id="paneTodo">
     <div class="pane-grip" title="拖动调换栏位">☰</div>
@@ -918,6 +1018,52 @@ autostartToggle.addEventListener('click', () => {
 
 refreshAutostart();
 
+// ── GPU 监控（数据来自 server.js 的 /api/gpu，ssh + nvidia-smi）──
+let _gpuCount = -1;
+
+function renderGpu(d) {
+  const dot   = document.getElementById('gpuDot');
+  const title = document.getElementById('gpuTitle');
+  const list  = document.getElementById('gpuList');
+
+  if (!d.ok) {
+    dot.className = 'gpu-dot off';
+    title.textContent = d.host || 'GPU';
+    list.innerHTML = `<div class="gpu-empty">${escHtml(d.error || '离线')}</div>`;
+  } else {
+    dot.className = 'gpu-dot on';
+    title.textContent = d.host;
+    list.innerHTML = d.gpus.map(g => `
+      <div class="gpu-card">
+        <div class="gpu-row">
+          <span class="gpu-idx">GPU${g.index}</span>
+          <span class="gpu-temp ${g.temp >= 80 ? 'hot' : ''}">${g.temp}°</span>
+          <span class="gpu-mem-text">${(g.memUsed / 1024).toFixed(1)}/${Math.round(g.memTotal / 1024)}G</span>
+        </div>
+        <div class="gpu-bar"><div class="gpu-fill util" style="width:${g.util}%"></div></div>
+        <div class="gpu-bar"><div class="gpu-fill mem" style="width:${(g.memUsed / g.memTotal * 100).toFixed(1)}%"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // 梯子结构变化（卡数变化/掉线）时校验年的楼层
+  const count = d.ok ? d.gpus.length : 0;
+  if (count !== _gpuCount) {
+    _gpuCount = count;
+    window.petCheckFloor?.();
+  }
+}
+
+function fetchGpu() {
+  fetch('/api/gpu')
+    .then(r => r.json())
+    .then(renderGpu)
+    .catch(() => renderGpu({ ok: false, error: '本地服务不可达' }));
+}
+
+fetchGpu();
+setInterval(fetchGpu, 5000);
+
 // ── 左栏宽度拖拽（setPointerCapture 现代写法）───────────────
 const LEFT_W_KEY = 'claude-dash-leftw';
 const leftPane   = document.querySelector('.left');
@@ -974,7 +1120,9 @@ function placeDivider() {
 // 恢复保存的栏序
 try {
   const order = JSON.parse(localStorage.getItem(PANE_KEY));
-  if (Array.isArray(order)) {
+  // 栏数变化（如新增 GPU 栏）时旧栏序作废，避免错乱
+  if (Array.isArray(order) && order.length === panes().length
+      && order.every(id => document.getElementById(id))) {
     order.forEach(id => {
       const p = document.getElementById(id);
       if (p) mainBox.appendChild(p);
@@ -1505,8 +1653,8 @@ async function initPet() {
       if (parseFloat(style.borderBottomWidth) > 0 && visible(style.borderBottomColor)) addLine(rect.bottom - cardRect.top, elLeft, elRight);
     });
 
-    // 用量条没有 border（纯背景色填充），单独把上边缘加入；左右边界取条本身的矩形
-    document.querySelectorAll('.usage-bar-wrap').forEach(el => {
+    // 用量条 / GPU 条没有 border（纯背景色填充），单独把上边缘加入；左右边界取条本身的矩形
+    document.querySelectorAll('.usage-bar-wrap, .gpu-bar').forEach(el => {
       const rect = el.getBoundingClientRect();
       const L = Math.max(0,      Math.round((rect.left  - cardRect.left) / sc));
       const R = Math.min(CARD_W, Math.round((rect.right - cardRect.left) / sc));
