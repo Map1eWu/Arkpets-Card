@@ -1,7 +1,7 @@
 # Arkpets-Card
 
 一块 800×480 的桌面信息卡片：时钟 / 天气 + 待办事项 + Claude Code 用量监控，以及一只会在界面横线之间跳来跳去的明日方舟桌宠「年」。
-![demon](demon.png)
+![demon](demon_img/demon1.png)
 
 ## 功能
 
@@ -73,14 +73,13 @@ cp .env.example .env   # 按需填写 ACCOUNT_LABEL 等
 
 1. 在 Ark-Models 的 `models/` 中找到想要的干员，下载整个文件夹，放到本项目根目录（与 `2014_nian_nian#4/` 同级）
 2. 修改 `claude-dashboard.html` 桌宠模块顶部的四个常量，例如：
-
+   
    ```js
    const MODEL_DIR  = '/xxxx_name/';            // 文件夹名；特殊字符需 URL 编码（如 # → %23）
    const SKEL_KEY   = 'build_char_xxxx_name.skel';
    const ATLAS_KEY  = 'build_char_xxxx_name.atlas';
    const PNG_KEY    = 'build_char_xxxx_name.png';
    ```
-
 3. 刷新页面即可，体型不合适就调 `SCALE`
 
 **注意事项**
