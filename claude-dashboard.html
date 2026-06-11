@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800">
+<title>Claude Dashboard</title>
+<style>
+:root {
+  --bg:           #F5F0E8;
+  --card:         #EDE5D8;
+  --border:       #D9CFBF;
+  --text:         #1A1714;
+  --muted:        #8A7D72;
+  --accent:       #C06B40;
+  --accent-dim:   #E8C9B5;
+  --track:        #DDD3C6;
+  --surface:      #FAF7F2;
+  --done:         #5A7A5A;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  color: var(--text);
+  width: 800px;
+  height: 480px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+#pet-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 800px;
+  height: 480px;
+  pointer-events: none;
+  cursor: grab;
+  z-index: 5;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 9px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-mark {
+  width: 22px;
+  height: 22px;
+  position: relative;
+}
+
+.logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.header-date {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ── Main ── */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left Panel ── */
+.left {
+  width: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* 垂直居中 */
+  align-items: center;       /* 水平居中 */
+  text-align: center;
+  border-right: 1px solid var(--border);
+  padding: 18px 18px 14px;
+  gap: 16px;
+}
+
+.time-block {}
+
+.time-display {
+  font-size: 56px;
+  font-weight: 200;
+  letter-spacing: -2px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.time-meta {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.weekday {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lunar {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Weather ── */
+.weather-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weather-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.weather-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.weather-temp {
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -1px;
+}
+
+.weather-temp span {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.weather-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.weather-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.weather-detail {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.weather-detail .val {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.weather-loading {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Right Panel (Todo) ── */
+.right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.todo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.todo-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.todo-count {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.todo-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+  scrollbar-width: none;
+}
+
+.todo-list::-webkit-scrollbar { display: none; }
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid transparent;
+  user-select: none;
+}
+
+.todo-item:hover { background: var(--card); }
+.todo-item:not(:last-child) { border-bottom-color: var(--border); }
+
+.todo-check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.todo-item.done .todo-check {
+  background: var(--done);
+  border-color: var(--done);
+}
+
+.todo-item.done .todo-check::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 1.5px solid white;
+  border-bottom: 1.5px solid white;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.todo-label {
+  flex: 1;
+  font-size: 13px;
+  transition: color 0.15s;
+}
+
+.todo-item.done .todo-label {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+
+.todo-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+  cursor: text;
+}
+
+.todo-time:hover { color: var(--accent); }
+
+.todo-item.done .todo-time { color: var(--track); }
+
+/* 时间内联编辑输入框 */
+.todo-time-input {
+  width: 64px;
+  border: none;
+  outline: none;
+  background: var(--surface);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--text);
+  font-family: inherit;
+  text-align: right;
+  padding: 1px 4px;
+}
+
+/* hover 浮现的删除按钮（visibility 占位，避免行内元素跳动） */
+.todo-del {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.todo-item:hover .todo-del { visibility: visible; }
+.todo-del:hover { color: var(--accent); background: var(--accent-dim); }
+
+.todo-add {
+  padding: 8px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+}
+
+.todo-input::placeholder { color: var(--muted); }
+
+.todo-input-time {
+  width: 56px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  text-align: right;
+}
+
+.todo-input-time::placeholder { color: var(--muted); }
+
+/* ── Footer: Usage ── */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 11px 20px 12px;
+  flex-shrink: 0;
+  background: var(--surface);
+  position: relative;
+}
+
+/* 年的站台：两条 usage-row 中间的装饰横线 */
+#pet-perch {
+  position: absolute;
+  right: 0;
+  width: 155px;          /* (usage-body右边缘 + 卡片右边缘) / 2 到右边缘 */
+  top: 55px;             /* footer内：padding(11) + header(18) + margin(9) + row1(16) */
+  height: 0;
+  border-top: 1px solid var(--border);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.usage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+/* -- usage setting -- */
+.usage-reset {
+  display: inline-grid;
+  grid-template-columns: 4ch 4ch auto;  /* 第一数值 / 第二数值 / 后缀 */
+  gap: 2px;
+  align-items: baseline;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.rt-num {
+  text-align: right;
+  min-width: 1ch;
+}
+.rt-cell1, .rt-cell2 {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.rt-unit {
+  margin-right: 3px;
+}
+/* -- usage setting -- */
+
+.usage-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.usage-refresh {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.usage-refresh:hover { background: var(--card); }
+
+.usage-refresh-icon {
+  font-size: 11px;
+  transition: transform 0.4s;
+}
+
+.usage-refresh.spinning .usage-refresh-icon {
+  animation: spin 0.6s linear;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.usage-body {
+  width: 75%;
+}
+
+.usage-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.usage-label {
+  font-size: 11px;
+  color: var(--muted);
+  width: 54px;
+  flex-shrink: 0;
+}
+
+.usage-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--track);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.usage-pct {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.usage-stale {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.usage-note {
+  font-size: 10px;
+  color: var(--track);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ── Claude Logo SVG ── */
+.claude-star {
+  width: 22px;
+  height: 22px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="logo">
+    <img src="img/claude-color.svg" width="22" height="22" alt="Claude">
+    <span class="logo-text">Claude</span>
+  </div>
+  <div class="header-date" id="headerDate"></div>
+</header>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Left: Time + Weather -->
+  <div class="left">
+    <div class="time-block">
+      <div class="time-display" id="clock">--:--</div>
+      <div class="time-meta">
+        <span class="weekday" id="weekday"></span>
+        <span class="lunar" id="lunar"></span>
+      </div>
+    </div>
+
+    <div class="weather-block" id="weatherBlock">
+      <div class="weather-loading">获取天气中…</div>
+    </div>
+  </div>
+
+  <!-- Right: Todo -->
+  <div class="right">
+    <div class="todo-header">
+      <div class="todo-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="1" width="12" height="12" rx="2" stroke="#8A7D72" stroke-width="1.3"/>
+          <line x1="4" y1="5" x2="10" y2="5" stroke="#8A7D72" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="4" y1="7.5" x2="10" y2="7.5" stroke="#8A7D72" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="4" y1="10" x2="7.5" y2="10" stroke="#8A7D72" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        待办事项
+      </div>
+      <span class="todo-count" id="todoCount"></span>
+    </div>
+
+    <div class="todo-list" id="todoList"></div>
+
+    <div class="todo-add">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <line x1="6" y1="1" x2="6" y2="11" stroke="#8A7D72" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="1" y1="6" x2="11" y2="6" stroke="#8A7D72" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <input class="todo-input" id="todoInput" placeholder="添加待办事项… Enter 确认" />
+      <input class="todo-input-time" id="todoTimeInput" placeholder="备注" />
+    </div>
+  </div>
+</div>
+
+<!-- Footer: Usage -->
+<footer class="footer">
+  <div class="usage-body">
+  <div class="usage-header">
+    <div class="usage-title">
+      <img src="img/claude-color.svg" width="13" height="13" alt="Claude">
+      Claude Code 用量
+    </div>
+    <div class="usage-refresh" id="refreshBtn" onclick="refreshUsage()">
+      <span class="usage-refresh-icon">↻</span>
+      <span id="refreshTime">--:--</span>
+    </div>
+  </div>
+  <div class="usage-rows">
+    <div class="usage-row">
+      <span class="usage-label">5 小时</span>
+      <div class="usage-bar-wrap">
+        <div class="usage-bar-fill" id="bar5h" style="width:0%"></div>
+      </div>
+      <span class="usage-pct" id="pct5h">--%</span>
+      <span class="usage-reset" id="reset5h">--</span>
+    </div>
+    <div class="usage-row">
+      <span class="usage-label">7 天</span>
+      <div class="usage-bar-wrap">
+        <div class="usage-bar-fill" id="bar7d" style="width:0%"></div>
+      </div>
+      <span class="usage-pct" id="pct7d">--%</span>
+      <span class="usage-reset" id="reset7d">--</span>
+    </div>
+  </div>
+  <div class="usage-note" id="usageNote">请运行 update-usage.js 以加载真实数据</div>
+  </div>
+  <!-- 年的站台：footer 右侧装饰横线 -->
+  <div id="pet-perch"></div>
+</footer>
+
+<!-- 桌宠 canvas -->
+<canvas id="pet-canvas"></canvas>
+
+<!-- usage-data.js is generated by update-usage.js -->
+<script>
+// Injected by update-usage.js — will override USAGE_DATA below if file exists
+</script>
+<script src="usage-data.js" onerror="console.log('usage-data.js not found, using mock data')"></script>
+
+<script>
+// ── Constants ──────────────────────────────────────────────
+const WEEKDAYS = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+
+// Claude Max plan approximate limits (tokens)
+const LIMIT_5H  = 1_000_000;   // adjust to your plan
+const LIMIT_7D  = 10_000_000;  // adjust to your plan
+
+// Weather code → { icon, desc }
+const WMO = {
+  0:  { icon:'☀️',  desc:'晴天' },
+  1:  { icon:'🌤️', desc:'少云' },
+  2:  { icon:'⛅',  desc:'多云' },
+  3:  { icon:'☁️',  desc:'阴天' },
+  45: { icon:'🌫️', desc:'雾' },
+  48: { icon:'🌫️', desc:'浓雾' },
+  51: { icon:'🌦️', desc:'毛毛雨' },
+  61: { icon:'🌧️', desc:'小雨' },
+  63: { icon:'🌧️', desc:'中雨' },
+  65: { icon:'🌧️', desc:'大雨' },
+  71: { icon:'🌨️', desc:'小雪' },
+  73: { icon:'❄️',  desc:'中雪' },
+  75: { icon:'❄️',  desc:'大雪' },
+  80: { icon:'🌦️', desc:'阵雨' },
+  95: { icon:'⛈️',  desc:'雷暴' },
+};
+
+// ── Clock & Date ───────────────────────────────────────────
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function updateClock() {
+  const now = new Date();
+  const h = pad(now.getHours());
+  const m = pad(now.getMinutes());
+  document.getElementById('clock').textContent = `${h}:${m}`;
+
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  document.getElementById('headerDate').textContent =
+    `${year}年${month}月${day}日`;
+  document.getElementById('weekday').textContent = WEEKDAYS[now.getDay()];
+}
+
+updateClock();
+setInterval(updateClock, 1000);
+
+// Approximate lunar date (simplified — for display only)
+function getLunar() {
+  // Simple offset-based approximation; not astronomically precise
+  const lunarMonths = ['正','二','三','四','五','六','七','八','九','十','冬','腊'];
+  const lunarDays   = ['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十',
+    '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
+    '廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
+  // Lunar new year 2025 = Jan 29; 2026 = Feb 17
+  const lunarNewYear2025 = new Date(2025, 0, 29);
+  const lunarNewYear2026 = new Date(2026, 1, 17);
+  const now = new Date();
+  let base, yearStem;
+  if (now >= lunarNewYear2026) {
+    base = lunarNewYear2026; yearStem = '丙午';
+  } else {
+    base = lunarNewYear2025; yearStem = '乙巳';
+  }
+  const diffDays = Math.floor((now - base) / 86400000);
+  const lunarMonth = Math.floor(diffDays / 29.5);
+  const lunarDay   = diffDays % 30;
+  return `${yearStem}年 ${lunarMonths[lunarMonth] || '?'}月${lunarDays[lunarDay] || '?'}`;
+}
+document.getElementById('lunar').textContent = getLunar();
+
+// ── Weather ────────────────────────────────────────────────
+function renderWeather(data) {
+  const c = data.current;
+  const d = data.daily;
+  const wmo = WMO[c.weathercode] || WMO[Math.floor(c.weathercode / 10) * 10] || { icon:'🌡️', desc:'未知' };
+  document.getElementById('weatherBlock').innerHTML = `
+    <div class="weather-main">
+      <span class="weather-icon">${wmo.icon}</span>
+      <div>
+        <div class="weather-temp">${Math.round(c.temperature_2m)}<span>°C</span></div>
+        <div class="weather-desc">${wmo.desc}</div>
+      </div>
+    </div>
+    <div class="weather-details">
+      <div class="weather-detail">↑ <span class="val">${Math.round(d.temperature_2m_max[0])}°</span></div>
+      <div class="weather-detail">↓ <span class="val">${Math.round(d.temperature_2m_min[0])}°</span></div>
+      <div class="weather-detail"><img src="img/shuikushuiwei.svg" width="12" height="12" alt="湿度"> <span class="val">${c.relativehumidity_2m}%</span></div>
+      <div class="weather-detail"><img src="img/fengsu.svg" width="12" height="12" alt="风速"> <span class="val">${Math.round(c.windspeed_10m)}km/h</span></div>
+    </div>
+  `;
+}
+
+function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m` +
+    `&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
+  fetch(url)
+    .then(r => r.json())
+    .then(renderWeather)
+    .catch(() => {
+      document.getElementById('weatherBlock').innerHTML =
+        '<div class="weather-loading">天气获取失败</div>';
+    });
+}
+
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+    ()  => { document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">请允许位置权限</div>'; }
+  );
+} else {
+  document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">不支持定位</div>';
+}
+
+// ── Todo ───────────────────────────────────────────────────
+const DEFAULT_TODOS = [
+  { id: 1, label: '阅读论文', time: '09:00', done: false },
+  { id: 2, label: '整理实验数据', time: '11:00', done: false },
+  { id: 3, label: '撰写研究报告', time: '14:00', done: false },
+  { id: 4, label: '组会汇报准备', time: '16:00', done: false },
+];
+
+let todos = [];
+
+function loadTodos() {
+  try {
+    const saved = localStorage.getItem('claude-dash-todos');
+    todos = saved ? JSON.parse(saved) : DEFAULT_TODOS;
+  } catch { todos = DEFAULT_TODOS; }
+}
+
+function saveTodos() {
+  localStorage.setItem('claude-dash-todos', JSON.stringify(todos));
+}
+
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  const done = todos.filter(t => t.done).length;
+  document.getElementById('todoCount').textContent = `${done}/${todos.length}`;
+
+  list.innerHTML = todos.map(t => `
+    <div class="todo-item ${t.done ? 'done' : ''}" onclick="toggleTodo(${t.id})">
+      <div class="todo-check"></div>
+      <span class="todo-label">${escHtml(t.label)}</span>
+      <span class="todo-time" onclick="editTime(${t.id}, event)" title="点击修改时间">${t.time ? escHtml(t.time) : '—'}</span>
+      <span class="todo-del" onclick="delTodo(${t.id}, event)" title="删除">×</span>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleTodo(id) {
+  const t = todos.find(t => t.id === id);
+  if (t) { t.done = !t.done; saveTodos(); renderTodos(); }
+}
+
+// 删除单条待办（hover 浮现的 ×）
+function delTodo(id, ev) {
+  ev.stopPropagation();
+  todos = todos.filter(t => t.id !== id);
+  saveTodos(); renderTodos();
+}
+
+// 点击时间 → 内联编辑（自由文本，Enter/失焦保存，Esc 取消）
+function editTime(id, ev) {
+  ev.stopPropagation();
+  const span = ev.currentTarget;
+  if (span.querySelector('input')) return;
+  const t = todos.find(x => x.id === id);
+  if (!t) return;
+
+  span.innerHTML = `<input class="todo-time-input" value="${escHtml(t.time || '').replace(/"/g, '&quot;')}">`;
+  const inp = span.querySelector('input');
+  inp.focus();
+  inp.select();
+  inp.addEventListener('click', e => e.stopPropagation());
+
+  let closed = false;
+  const commit = save => {
+    if (closed) return;
+    closed = true;
+    if (save) { t.time = inp.value.trim(); saveTodos(); }
+    renderTodos();
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  commit(true);
+    if (e.key === 'Escape') commit(false);
+  });
+  inp.addEventListener('blur', () => commit(true));
+}
+
+// 添加待办：时间为可选自由文本（如 "14:00" / "周五"），留空则不显示
+function addTodo() {
+  const labelInp = document.getElementById('todoInput');
+  const timeInp  = document.getElementById('todoTimeInput');
+  const val = labelInp.value.trim();
+  if (!val) return;
+  todos.push({
+    id: Date.now(),
+    label: val,
+    time: timeInp.value.trim(),
+    done: false,
+  });
+  saveTodos(); renderTodos();
+  labelInp.value = '';
+  timeInp.value  = '';
+}
+
+// 两个输入框里按 Enter 都可提交
+document.getElementById('todoInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTodo();
+});
+document.getElementById('todoTimeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTodo();
+});
+
+loadTodos();
+renderTodos();
+
+// ── Claude Code Usage ──────────────────────────────────────
+// window.USAGE_DATA is injected by usage-data.js (generated by update-usage.js)
+// Format (v2 — Claude-HUD snapshot):
+// { pct5h, pct7d, resetAt5h, resetAt7d, updatedAt, isStale, source }
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtReset(isoStr) {
+  if (!isoStr) return '<span class="rt-na">--</span>';
+  const diff = new Date(isoStr) - Date.now();
+  if (diff <= 0) return '<span class="rt-na">即将重置</span>';
+  
+  const d = Math.floor(diff / 86400000);
+  let cell1, cell2;
+  
+  if (d > 0) {
+    // d + h 格式
+    const h = Math.floor((diff % 86400000) / 3600000);
+    cell1 = `<span class="rt-num">${d}</span><span class="rt-unit">d</span>`;
+    cell2 = `<span class="rt-num">${h}</span><span class="rt-unit">h</span>`;
+  } else {
+    // h + m 格式
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    cell1 = `<span class="rt-num">${h}</span><span class="rt-unit">h</span>`;
+    cell2 = `<span class="rt-num">${m}</span><span class="rt-unit">m</span>`;
+  }
+  
+  return `<span class="rt-cell1">${cell1}</span><span class="rt-cell2">${cell2}</span><span class="rt-suffix">后重置</span>`;
+}
+
+function renderUsage(data) {
+  const pct5 = data.pct5h ?? 0;
+  const pct7 = data.pct7d ?? 0;
+
+  document.getElementById('bar5h').style.width = pct5 + '%';
+  document.getElementById('bar7d').style.width = pct7 + '%';
+  document.getElementById('pct5h').textContent = pct5 + '%';
+  document.getElementById('pct7d').textContent = pct7 + '%';
+  // document.getElementById('reset5h').textContent = fmtReset(data.resetAt5h);
+  // document.getElementById('reset7d').textContent = fmtReset(data.resetAt7d);
+  document.getElementById('reset5h').innerHTML = fmtReset(data.resetAt5h);
+  // console.log('full data:', JSON.stringify(data, null, 2));
+  
+  document.getElementById('reset7d').innerHTML = fmtReset(data.resetAt7d);
+  document.getElementById('refreshTime').textContent = fmtTime(data.updatedAt);
+
+  const note = document.getElementById('usageNote');
+  if (data.isStale) {
+    note.innerHTML = '<span class="usage-stale">⚠ 数据可能过期 — Claude Code 未在运行？</span>';
+  } else {
+    // 账户标识从 .env 的 ACCOUNT_LABEL 经 update-usage.js 注入，仓库中不含个人信息
+    note.textContent = data.account ? `Account : ${data.account}` : '来源：Claude 服务端实时数据';
+  }
+}
+
+// 重置倒计时每分钟刷新一次显示
+let _usageData = null;
+setInterval(() => {
+  if (_usageData) {
+    // document.getElementById('reset5h').textContent = fmtReset(_usageData.resetAt5h);
+    // document.getElementById('reset7d').textContent = fmtReset(_usageData.resetAt7d);
+    document.getElementById('reset5h').innerHTML = fmtReset(_usageData.resetAt5h);
+    document.getElementById('reset7d').innerHTML = fmtReset(_usageData.resetAt7d);
+  }
+}, 60 * 1000);
+
+function refreshUsage() {
+  const btn  = document.getElementById('refreshBtn');
+  const note = document.getElementById('usageNote');
+
+  // 开始旋转（持续到完成）
+  btn.classList.add('spinning');
+  // curl -v http://localhost:3000/api/refresh
+  fetch('/api/refresh')
+    .then(r => r.json())
+    .then(result => {
+      if (!result.ok) throw new Error(result.error || '更新失败');
+      // update-usage.js 已写好 usage-data.js，重新加载它
+      return fetch('usage-data.js?t=' + Date.now()).then(r => r.text());
+    })
+    .then(code => {
+      try {
+        new Function(code)();
+        if (window.USAGE_DATA) {
+          _usageData = window.USAGE_DATA;
+          renderUsage(window.USAGE_DATA);
+        }
+      } catch(e) { console.error('usage-data.js parse error', e); }
+    })
+    .catch(err => {
+      console.error('refreshUsage error:', err);
+      note.innerHTML = '<span class="usage-stale">⚠ 刷新失败：' + err.message + '</span>';
+    })
+    .finally(() => {
+      btn.classList.remove('spinning');
+    });
+}
+
+// On load
+if (window.USAGE_DATA) {
+  _usageData = window.USAGE_DATA;
+  renderUsage(window.USAGE_DATA);
+}
+
+// Auto-refresh every 5 minutes
+setInterval(refreshUsage, 5 * 60 * 1000);
+</script>
+
+<script type="module">
+// ── 桌宠：年 ─────────────────────────────────────────────────
+import spine from '/libs/spine-webgl.js';
+
+const MODEL_DIR  = '/2014_nian_nian%234/';
+const SKEL_KEY   = 'build_char_2014_nian_nian#4.skel';
+const ATLAS_KEY  = 'build_char_2014_nian_nian#4.atlas';
+const PNG_KEY    = 'build_char_2014_nian_nian#4.png';
+
+// ── 行为参数 ───────────────────────────────────────────────
+const CARD_W    = 800;
+const CARD_H    = 480;
+const FLOOR_Y   = 0;           // 距卡片底部的地面高度（px），与 footer 对齐
+const INIT_X    = 675;          // 初始 x 位置（px，0=左 800=右）
+const WALK_SPD  = 45;           // px/s
+const X_MIN     = 50;
+const X_MAX     = 750;
+const SCALE      = 0.4;
+const JUMP_RANGE = 65;         // Sit 时向上/下寻找横线的最大距离（px）
+const SIT_MIN_H  = 50;         // currentFloorY 低于此值时禁止 Sit（空间不够）
+const GRAVITY    = 1200;       // 拖拽释放后的下落加速度（px/s²）
+const CLICK_DIST = 4;          // 按下后移动距离小于此视为点击（px）
+const MAX_FLOOR_Y = CARD_H - 150; // 可落/可坐横线的最大高度，太高会越出卡片上界
+
+// 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
+// Interact 仅由点击触发（所有行概率为 0），播完必回 Relax
+const STATES  = ['Relax', 'Move', 'Sit', 'Sleep', 'Interact'];
+const MARKOV  = {
+  Relax:    [0.35, 0.35, 0.20, 0.10, 0],
+  Move:     [0.35, 0.65, 0.00, 0.00, 0],
+  Sit:      [0.35, 0.00, 0.65, 0.00, 0],
+  Sleep:    [0.15, 0.00, 0.00, 0.85, 0],
+  Interact: [1.00, 0.00, 0.00, 0.00, 0],
+};
+
+function pickNext(current) {
+  const probs = MARKOV[current];
+  let r = Math.random(), cum = 0;
+  for (let i = 0; i < probs.length; i++) {
+    cum += probs[i];
+    if (r <= cum) return STATES[i];
+  }
+  return 'Relax';
+}
+
+// fetch → data URL（绕过 # 文件名问题）
+async function toDataURL(url) {
+  const blob = await (await fetch(url)).blob();
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onloadend = () => res(fr.result);
+    fr.readAsDataURL(blob);
+  });
+}
+
+async function initPet() {
+  const canvas = document.getElementById('pet-canvas');
+  const PR = window.devicePixelRatio || 1;
+  const CW = CARD_W * PR, CH = CARD_H * PR;
+  canvas.width = CW; canvas.height = CH;
+
+  // 加载模型文件
+  const enc = s => encodeURIComponent(s);
+  const [skelData, atlasData, pngData] = await Promise.all([
+    toDataURL(MODEL_DIR + enc(SKEL_KEY)),
+    toDataURL(MODEL_DIR + enc(ATLAS_KEY)),
+    toDataURL(MODEL_DIR + enc(PNG_KEY)),
+  ]);
+
+  // WebGL 初始化
+  const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
+  if (!gl) { console.error('WebGL 不可用'); return; }
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const ctx = new spine.webgl.ManagedWebGLRenderingContext(gl);
+  const am  = new spine.webgl.AssetManager(gl);
+
+  am.setRawDataURI(SKEL_KEY,  skelData);
+  am.setRawDataURI(ATLAS_KEY, atlasData);
+  am.setRawDataURI(PNG_KEY,   pngData);
+
+  await new Promise((resolve, reject) => {
+    am.loadBinary(SKEL_KEY, () => {
+      am.loadTextureAtlas(ATLAS_KEY, resolve,
+        (_, m) => reject(new Error('atlas: ' + m)));
+    }, (_, m) => reject(new Error('skel: ' + m)));
+  });
+
+  // 构建骨骼
+  const atlas  = am.get(ATLAS_KEY);
+  const binary = new spine.SkeletonBinary(new spine.AtlasAttachmentLoader(atlas));
+  binary.scale = SCALE * PR;
+
+  const sd  = binary.readSkeletonData(am.get(SKEL_KEY));
+  const has = name => !!sd.findAnimation(name);
+
+  const skeleton = new spine.Skeleton(sd);
+
+  // 当前地面高度 + 左右走动边界（跳线时动态更新）
+  let currentFloorY = FLOOR_Y;
+  let currentXMin   = X_MIN;
+  let currentXMax   = X_MAX;
+
+  // 鼠标交互状态
+  let mode      = 'auto';   // 'auto' 自主行动 | 'drag' 被拖拽 | 'fall' 下落中
+  let fallVy    = 0;        // 下落速度（px/s）
+  let dragStart = null;     // 按下信息 {mx, my, sx, sy, moved}
+  const lastMouse  = { x: -1, y: -1 };
+  const hoverPixel = new Uint8Array(4);
+
+  // 初始位置
+  skeleton.x = INIT_X * PR;
+  skeleton.y = currentFloorY * PR;
+
+  // ── 横线检测 ─────────────────────────────────────────────
+  // 返回卡片内所有横向 border 的 {y, left, right}
+  // y = 距卡片底部 CSS px；left/right = 距卡片左边 CSS px（多元素同 y 时取并集）
+  function getHorizontalLines() {
+    const cardRect = canvas.getBoundingClientRect();
+    const lineMap  = new Map(); // floorY → {y, left, right}
+    document.querySelectorAll('*').forEach(el => {
+      if (el === canvas) return;
+      const style   = window.getComputedStyle(el);
+      const rect    = el.getBoundingClientRect();
+      const elLeft  = Math.max(0,      Math.round(rect.left  - cardRect.left));
+      const elRight = Math.min(CARD_W, Math.round(rect.right - cardRect.left));
+      if (elLeft >= elRight) return;
+
+      const addLine = screenY => {
+        const fy = CARD_H - Math.round(screenY);
+        if (fy <= 2 || fy >= CARD_H - 2) return;
+        const ex = lineMap.get(fy);
+        if (ex) { ex.left = Math.min(ex.left, elLeft); ex.right = Math.max(ex.right, elRight); }
+        else      lineMap.set(fy, { y: fy, left: elLeft, right: elRight });
+      };
+
+      // 透明 border 不算线（如 todo-item 的占位 border-bottom）
+      const visible = c => {
+        const m = String(c).match(/rgba?\(([^)]+)\)/);
+        return m ? (m[1].split(',').length < 4 || parseFloat(m[1].split(',')[3]) > 0)
+                 : c !== 'transparent';
+      };
+      if (parseFloat(style.borderTopWidth)    > 0 && visible(style.borderTopColor))    addLine(rect.top    - cardRect.top);
+      if (parseFloat(style.borderBottomWidth) > 0 && visible(style.borderBottomColor)) addLine(rect.bottom - cardRect.top);
+    });
+    return [...lineMap.values()].sort((a, b) => a.y - b.y);
+  }
+
+  // 在当前 floorY 附近 JUMP_RANGE 范围内找横线，返回 {y, left, right}[]
+  function findNearbyLines(floorY) {
+    const lines = getHorizontalLines();
+    // 地面不是元素 border，作为虚拟线加入候选，让年能跳回地面
+    lines.push({ y: FLOOR_Y, left: X_MIN, right: X_MAX });
+    const sx = skeleton.x / PR;
+    return lines.filter(ln =>
+      Math.abs(ln.y - floorY) > 4 &&
+      Math.abs(ln.y - floorY) <= JUMP_RANGE &&
+      ln.y <= MAX_FLOOR_Y &&
+      sx >= ln.left && sx <= ln.right   // 只跳正上/正下方的线，避免横向瞬移
+    );
+  }
+
+  // 动画混合过渡（全部启用，包括 Sit）
+  const stateData = new spine.AnimationStateData(sd);
+  STATES.forEach(a => STATES.forEach(b => {
+    if (a !== b && has(a) && has(b)) stateData.setMix(a, b, 0.3);
+  }));
+
+  const state = new spine.AnimationState(stateData);
+  let curAnim = 'Relax';
+  let dir     = -1; // -1 = 面向左，1 = 面向右
+  state.setAnimation(0, curAnim, true);
+
+  // 跳到目标线：更新楼层与走动边界，并把 x 夹进新边界
+  function jumpTo(target) {
+    currentFloorY = target.y;
+    skeleton.y    = currentFloorY * PR;
+    // 走动边界留边距；x 不吸附——落在边缘时把边界扩到当前位置，Move 到此折返
+    const mg = Math.min(15, (target.right - target.left) / 4);
+    const sx = skeleton.x / PR;
+    currentXMin = Math.min(target.left  + mg, sx);
+    currentXMax = Math.max(target.right - mg, sx);
+    console.log('年 跳到 y=', currentFloorY, ' X:', currentXMin, '~', currentXMax);
+  }
+
+  // 动画结束时换下一个状态
+  class Listener extends spine.AnimationStateAdapter {
+    complete() {
+      if (mode !== 'auto') return;   // 拖拽/下落中暂停状态机
+      const prev = curAnim;
+      let next = pickNext(prev);
+
+      // 首次进入 Sit：先找附近可坐的线（y >= SIT_MIN_H），60% 概率跳过去坐
+      // （Sit→Sit 续播不重新选线）
+      if (next === 'Sit' && prev !== 'Sit') {
+        const sittable = findNearbyLines(currentFloorY).filter(ln => ln.y >= SIT_MIN_H);
+        if (sittable.length > 0 && Math.random() < 0.6) {
+          jumpTo(sittable[Math.floor(Math.random() * sittable.length)]);
+        } else if (currentFloorY < SIT_MIN_H) {
+          // 没跳走且当前楼层太低（坐姿会穿模）→ 改为 Relax
+          next = 'Relax';
+        }
+        // 当前楼层可坐 → 就地坐下，不改楼层
+      }
+
+      // 坐够/睡醒起身（Sit/Sleep→Relax）时：30% 概率跳到下方的线或地面（含虚拟地面线）
+      // 不挂在 Move→Relax 上，否则 0.3s 动画混合期内看起来像走路时瞬移
+      if (next === 'Relax' && (prev === 'Sit' || prev === 'Sleep') && currentFloorY > FLOOR_Y && Math.random() < 0.3) {
+        const lower = findNearbyLines(currentFloorY).filter(ln => ln.y < currentFloorY);
+        if (lower.length > 0) {
+          jumpTo(lower[Math.floor(Math.random() * lower.length)]);
+        }
+      }
+
+      if (next !== prev) state.setAnimation(0, next, true);
+      curAnim = next;
+      if (curAnim === 'Move' && Math.random() < 0.4) dir *= -1;
+    }
+  }
+  state.addListener(new Listener());
+
+  // ── 鼠标交互：悬停检测 / 点击 Interact / 拖拽抛落 ──────────
+  // 每帧渲染后读鼠标位置 1×1 像素的 alpha，悬在年的像素上才打开 pointer-events
+  function updateHover() {
+    const px = Math.round(lastMouse.x * PR);
+    const py = Math.round(CH - lastMouse.y * PR);   // GL 原点在左下
+    let over = false;
+    if (px >= 0 && px < CW && py >= 0 && py < CH) {
+      gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, hoverPixel);
+      over = hoverPixel[3] !== 0;
+    }
+    canvas.style.pointerEvents = over ? 'auto' : 'none';
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    dragStart = { mx: e.clientX, my: e.clientY, sx: skeleton.x, sy: skeleton.y, moved: false };
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    lastMouse.x = e.clientX - rect.left;
+    lastMouse.y = e.clientY - rect.top;
+
+    if (!dragStart) return;
+    const dx = e.clientX - dragStart.mx;
+    const dy = e.clientY - dragStart.my;
+    if (!dragStart.moved && Math.hypot(dx, dy) > CLICK_DIST) {
+      dragStart.moved = true;
+      mode = 'drag';
+      if (curAnim !== 'Relax') { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
+    }
+    if (dragStart.moved) {
+      // 骨骼跟随鼠标（保持按下时的抓取偏移；屏幕 y 向下，骨骼 y 向上）
+      skeleton.x = Math.max(0, Math.min(CARD_W * PR, dragStart.sx + dx * PR));
+      skeleton.y = Math.max(0, Math.min((CARD_H - 80) * PR, dragStart.sy - dy * PR));
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragStart) return;
+    const wasDrag = dragStart.moved;
+    dragStart = null;
+    if (wasDrag) {
+      mode = 'fall';            // 释放 → 下落，落点在 render 里逐帧判定
+      fallVy = 0;
+    } else if (has('Interact')) {
+      // 原地点击 → 互动动画（播一次，完毕经 Markov 回 Relax）
+      state.setAnimation(0, 'Interact', false);
+      curAnim = 'Interact';
+    }
+  });
+
+  // 渲染工具
+  const mvp = new spine.webgl.Matrix4();
+  mvp.ortho2d(0, 0, CW, CH);
+  const shader   = spine.webgl.Shader.newTwoColoredTextured(gl);
+  const batcher  = new spine.webgl.PolygonBatcher(gl);
+  const renderer = new spine.webgl.SkeletonRenderer(ctx);
+  renderer.premultipliedAlpha = false;
+
+  let last = Date.now() / 1000;
+
+  function render() {
+    const now   = Date.now() / 1000;
+    const delta = Math.min(now - last, 0.1);
+    last = now;
+
+    // 下落中：重力积分，落在本帧扫过区间内第一条 x 范围匹配的横线上
+    if (mode === 'fall') {
+      const sx    = skeleton.x / PR;
+      const prevY = skeleton.y / PR;
+      fallVy += GRAVITY * delta;
+      const newY = prevY - fallVy * delta;
+
+      // 候选：所有 DOM 横线 + 虚拟地面线；取扫过区间 [newY, prevY] 内最高的一条
+      const lines = getHorizontalLines();
+      lines.push({ y: FLOOR_Y, left: X_MIN, right: X_MAX });
+      let hit = null;
+      for (const ln of lines) {
+        if (ln.y <= prevY && ln.y >= newY && ln.y <= MAX_FLOOR_Y && sx >= ln.left && sx <= ln.right) {
+          if (!hit || ln.y > hit.y) hit = ln;
+        }
+      }
+
+      if (hit) {
+        jumpTo(hit);                                       // 落线：更新楼层与走动边界
+        mode = 'auto'; fallVy = 0;
+      } else if (newY <= 0) {
+        jumpTo({ y: FLOOR_Y, left: X_MIN, right: X_MAX }); // 兜底：落地
+        mode = 'auto'; fallVy = 0;
+      } else {
+        skeleton.y = newY * PR;
+      }
+    }
+
+    // 行走时更新 x 坐标
+    if (mode === 'auto' && curAnim === 'Move') {
+      skeleton.x += dir * WALK_SPD * PR * delta;
+      if (skeleton.x < currentXMin * PR)      { skeleton.x = currentXMin * PR; dir =  1; }
+      else if (skeleton.x > currentXMax * PR) { skeleton.x = currentXMax * PR; dir = -1; }
+    }
+
+    // 朝向（Spine 默认面朝右，scaleX=-1 翻转）
+    skeleton.scaleX = dir > 0 ? 1 : -1;
+
+    // 渲染
+    gl.viewport(0, 0, CW, CH);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    state.update(delta);
+    state.apply(skeleton);
+    skeleton.updateWorldTransform();
+
+    shader.bind();
+    shader.setUniformi(spine.webgl.Shader.SAMPLER, 0);
+    shader.setUniform4x4f(spine.webgl.Shader.MVP_MATRIX, mvp.values);
+    batcher.begin(shader);
+    renderer.draw(batcher, skeleton);
+    batcher.end();
+    shader.unbind();
+
+    // 悬停检测（拖拽中保持可交互，避免鼠标甩出像素导致 pointer-events 关闭）
+    if (mode === 'drag') canvas.style.pointerEvents = 'auto';
+    else updateHover();
+
+    requestAnimationFrame(render);
+  }
+
+  render();
+  console.log('✅ 年 加载完成，scale =', SCALE, '  初始 floor_y =', currentFloorY);
+}
+
+initPet().catch(e => console.error('❌ 桌宠加载失败:', e));
+</script>
+</body>
+</html>

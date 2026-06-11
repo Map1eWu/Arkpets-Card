@@ -1,0 +1,10 @@
+# 敏感信息
+.env
+
+# 运行时生成的个人数据
+usage-data.js
+
+# 依赖与杂项
+node_modules/
+debug-screenshot.png
+.DS_Store
