@@ -219,10 +219,30 @@ body {
   justify-content: center;   /* 垂直居中 */
   align-items: center;       /* 水平居中 */
   text-align: center;
-  border-right: 1px solid var(--border);
   padding: 18px 18px 14px;
   gap: 16px;
 }
+
+/* 左右栏分隔线：1px 视觉 + 9px 隐形命中区，可拖动调宽，双击复位 */
+#paneDivider {
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--border);
+  position: relative;
+  cursor: col-resize;
+  z-index: 3;
+}
+
+#paneDivider::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+}
+
+#paneDivider:hover, #paneDivider.dragging { background: var(--accent); }
 
 .time-display {
   font-size: 56px;
@@ -692,6 +712,9 @@ body {
     </div>
   </div>
 
+  <!-- 可拖动分隔线 -->
+  <div id="paneDivider" title="拖动调整宽度，双击复位"></div>
+
   <!-- Right: Todo -->
   <div class="right">
     <div class="todo-header">
@@ -863,6 +886,46 @@ autostartToggle.addEventListener('click', () => {
 });
 
 refreshAutostart();
+
+// ── 左栏宽度拖拽（setPointerCapture 现代写法）───────────────
+const LEFT_W_KEY = 'claude-dash-leftw';
+const leftPane   = document.querySelector('.left');
+const divider    = document.getElementById('paneDivider');
+
+const savedLeftW = parseInt(localStorage.getItem(LEFT_W_KEY), 10);
+if (savedLeftW) leftPane.style.width = savedLeftW + 'px';
+
+divider.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startW = leftPane.offsetWidth;
+  // 卡片整体被 scale 过，屏幕位移要除以缩放系数还原成卡片坐标
+  const sc = document.getElementById('card').getBoundingClientRect().width / 800 || 1;
+
+  divider.setPointerCapture(e.pointerId);   // 捕获后甩出 1px 线外照样收到事件
+  divider.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+
+  const onMove = ev => {
+    const w = Math.max(170, Math.min(320, startW + (ev.clientX - startX) / sc));
+    leftPane.style.width = w + 'px';
+  };
+  divider.addEventListener('pointermove', onMove);
+  divider.addEventListener('pointerup', () => {
+    divider.removeEventListener('pointermove', onMove);
+    divider.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    localStorage.setItem(LEFT_W_KEY, leftPane.offsetWidth);
+    window.petCheckFloor?.();   // 布局变了，校验年脚下的线还在不在
+  }, { once: true });
+});
+
+// 双击复位默认宽度
+divider.addEventListener('dblclick', () => {
+  leftPane.style.width = '210px';
+  localStorage.removeItem(LEFT_W_KEY);
+  window.petCheckFloor?.();
+});
 
 // ── Clock & Date ───────────────────────────────────────────
 function pad(n) { return String(n).padStart(2,'0'); }
