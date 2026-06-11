@@ -1748,7 +1748,7 @@ const BED = {
   x:     738,                        // 吸附判定锚点（床中心 x）
   range: 100,                         // |年x − 床x| ≤ range 时触发吸附
   // sit:   { x: 715, y: 25, dir: -1 }, // 坐姿坐标
-  sleep: { x: 735, y: 16, dir:  -1 }, // 躺姿坐标
+  sleep: { x: 705, y: 16, dir:  -1 }, // 躺姿坐标
 };
 
 // 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
@@ -1758,7 +1758,7 @@ const MARKOV  = {
   Relax:    [0.35, 0.35, 0.20, 0.10, 0],
   Move:     [0.35, 0.65, 0.00, 0.00, 0],
   Sit:      [0.35, 0.00, 0.65, 0.00, 0],
-  Sleep:    [0.15, 0.00, 0.00, 0.85, 0],
+  Sleep:    [0.85, 0.00, 0.00, 0.15, 0],
   Interact: [1.00, 0.00, 0.00, 0.00, 0],
 };
 
@@ -2148,6 +2148,22 @@ async function initPet() {
     } else if (alarm.state === 'off' && level > alarm.dismissed && mode === 'auto') {
       startAlarm(pct);
     }
+  };
+
+  // ── 调试接口：控制台直接切换动画（含床吸附逻辑）────────────
+  // 用法：petPlay('Sleep') / petPlay('Sit') / petPlay('Relax') / petPlay('Move') / petPlay('Interact')
+  window.petPlay = name => {
+    if (!has(name)) { console.warn('模型没有该动画：', name); return false; }
+    mode = 'auto';
+    const prev = curAnim;
+    if (name === 'Sleep' && prev !== 'Sleep') bedSnap('sleep');
+    if (name === 'Sit'   && prev !== 'Sit')   bedSnap('sit');
+    if (onBed && name !== 'Sit' && name !== 'Sleep') {
+      onBed = false; currentFloorY = FLOOR_Y; skeleton.y = FLOOR_Y * PR;
+    }
+    state.setAnimation(0, name, name !== 'Interact');
+    curAnim = name;
+    return true;
   };
 
   // ── 鼠标交互：悬停检测 / 点击 Interact / 拖拽抛落 ──────────
