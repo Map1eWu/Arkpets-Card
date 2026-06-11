@@ -999,12 +999,19 @@ document.querySelectorAll('.pane-grip').forEach(grip => {
         return ev.clientX >= r.left && ev.clientX <= r.right;
       });
       if (target) {
-        // 挪 target 而不是 src：被 pointer capture 的元素一旦从 DOM 移除
-        // （after/before = 先移除再插入）捕获即失效，pointerup 就收不到了
+        // 越过 target 中点才换位：两栏不等宽时，"进入矩形即换"会让换位后的
+        // 指针又落回对方新矩形里，每帧来回换造成抽搐；中点阈值自带滞回
+        const r   = target.getBoundingClientRect();
+        const mid = r.left + r.width / 2;
         const list = panes();
-        if (list.indexOf(src) < list.indexOf(target)) src.before(target);
-        else src.after(target);
-        placeDivider();
+        const movingRight = list.indexOf(src) < list.indexOf(target);
+        if (movingRight ? ev.clientX > mid : ev.clientX < mid) {
+          // 挪 target 而不是 src：被 pointer capture 的元素一旦从 DOM 移除
+          // （after/before = 先移除再插入）捕获即失效，pointerup 就收不到了
+          if (movingRight) src.before(target);
+          else src.after(target);
+          placeDivider();
+        }
       }
     };
     grip.addEventListener('pointermove', onMove);
