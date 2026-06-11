@@ -134,11 +134,6 @@ body {
   color: var(--muted);
 }
 
-.lunar {
-  font-size: 12px;
-  color: var(--muted);
-}
-
 /* ── Weather ── */
 .weather-block {
   display: flex;
@@ -557,7 +552,6 @@ body {
       <div class="time-display" id="clock">--:--</div>
       <div class="time-meta">
         <span class="weekday" id="weekday"></span>
-        <span class="lunar" id="lunar"></span>
       </div>
     </div>
 
@@ -696,30 +690,6 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-// Approximate lunar date (simplified — for display only)
-function getLunar() {
-  // Simple offset-based approximation; not astronomically precise
-  const lunarMonths = ['正','二','三','四','五','六','七','八','九','十','冬','腊'];
-  const lunarDays   = ['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十',
-    '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
-    '廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
-  // Lunar new year 2025 = Jan 29; 2026 = Feb 17
-  const lunarNewYear2025 = new Date(2025, 0, 29);
-  const lunarNewYear2026 = new Date(2026, 1, 17);
-  const now = new Date();
-  let base, yearStem;
-  if (now >= lunarNewYear2026) {
-    base = lunarNewYear2026; yearStem = '丙午';
-  } else {
-    base = lunarNewYear2025; yearStem = '乙巳';
-  }
-  const diffDays = Math.floor((now - base) / 86400000);
-  const lunarMonth = Math.floor(diffDays / 29.5);
-  const lunarDay   = diffDays % 30;
-  return `${yearStem}年 ${lunarMonths[lunarMonth] || '?'}月${lunarDays[lunarDay] || '?'}`;
-}
-document.getElementById('lunar').textContent = getLunar();
-
 // ── Weather ────────────────────────────────────────────────
 function renderWeather(data) {
   const c = data.current;
@@ -740,6 +710,8 @@ function renderWeather(data) {
       <div class="weather-detail"><img src="img/fengsu.svg" width="12" height="12" alt="风速"> <span class="val">${Math.round(c.windspeed_10m)}km/h</span></div>
     </div>
   `;
+  // 天气块高度变化会让左栏重新居中、分隔线移位 → 通知桌宠校验楼层
+  window.petCheckFloor?.();
 }
 
 function fetchWeather(lat, lon) {
@@ -808,6 +780,9 @@ function renderTodos() {
       <span class="todo-del" onclick="delTodo(${t.id}, event)" title="删除">×</span>
     </div>
   `).join('');
+
+  // 列表变动可能移除/移动年脚下的线 → 通知桌宠校验楼层
+  window.petCheckFloor?.();
 }
 
 function escHtml(s) {
@@ -1230,6 +1205,18 @@ async function initPet() {
     }
   }
   state.addListener(new Listener());
+
+  // ── 楼层失效检测 ─────────────────────────────────────────
+  // DOM 变动（删/增待办、天气加载）后由外部调用：
+  // 当前楼层的线消失或 x 范围不再覆盖年的位置 → 自然下落
+  window.petCheckFloor = () => {
+    if (mode !== 'auto' || currentFloorY <= FLOOR_Y) return;
+    const sx = skeleton.x / PR;
+    const ok = getHorizontalLines().some(ln =>
+      Math.abs(ln.y - currentFloorY) <= 2 && sx >= ln.left && sx <= ln.right
+    );
+    if (!ok) { mode = 'fall'; fallVy = 0; }
+  };
 
   // ── 鼠标交互：悬停检测 / 点击 Interact / 拖拽抛落 ──────────
   // 每帧渲染后读鼠标位置 1×1 像素的 alpha，悬在年的像素上才打开 pointer-events
