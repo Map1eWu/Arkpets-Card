@@ -434,26 +434,6 @@ body {
   font-style: italic;
 }
 
-.gpu-server { display: flex; flex-direction: column; gap: 7px; }
-
-.gpu-server-head {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-top: 2px;
-}
-
-.gpu-server-head .gpu-dot { width: 6px; height: 6px; }
-
-.gpu-server-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .gpu-card { display: flex; flex-direction: column; gap: 3px; }
 
 .gpu-row {
@@ -853,7 +833,8 @@ body {
   <span class="settings-label settings-label-gap">栏目</span>
   <div class="seg" id="paneSeg">
     <button data-pane="paneTime">时间</button>
-    <button data-pane="paneGpu">GPU</button>
+    <button data-pane="paneGpu">GPU 1</button>
+    <button data-pane="paneGpu2">GPU 2</button>
     <button data-pane="paneTodo">待办</button>
   </div>
   <span class="settings-label settings-label-gap">开机自启</span>
@@ -881,7 +862,7 @@ body {
 
   <!-- 分隔线由 syncDividers() 在每两栏之间自动生成 -->
 
-  <!-- Middle: GPU 监控 -->
+  <!-- Middle: GPU 监控（每台服务器一栏；第二栏仅在配置了两台时出现） -->
   <div class="gpu pane" id="paneGpu">
     <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
     <div class="pane-grip" title="拖动调换栏位">☰</div>
@@ -890,6 +871,18 @@ body {
       <span class="gpu-title" id="gpuTitle">GPU</span>
     </div>
     <div class="gpu-list" id="gpuList">
+      <div class="gpu-empty">连接中…</div>
+    </div>
+  </div>
+
+  <div class="gpu pane" id="paneGpu2" style="display:none">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
+    <div class="gpu-header">
+      <span class="gpu-dot" id="gpuDot2"></span>
+      <span class="gpu-title" id="gpuTitle2">GPU</span>
+    </div>
+    <div class="gpu-list" id="gpuList2">
       <div class="gpu-empty">连接中…</div>
     </div>
   </div>
@@ -1084,32 +1077,34 @@ function gpuCardHtml(g) {
     </div>`;
 }
 
+let gpu2Exists = false;   // 是否配置了第二台服务器（决定 paneGpu2 是否存在）
+
+function renderGpuServer(s, dotId, titleId, listId) {
+  const dot   = document.getElementById(dotId);
+  const title = document.getElementById(titleId);
+  const list  = document.getElementById(listId);
+  dot.className = 'gpu-dot ' + (s.ok ? 'on' : 'off');
+  title.textContent = s.host || 'GPU';
+  list.innerHTML = s.ok
+    ? s.gpus.map(gpuCardHtml).join('')
+    : `<div class="gpu-empty">${escHtml(s.error || '离线')}</div>`;
+}
+
 function renderGpu(d) {
-  const dot   = document.getElementById('gpuDot');
-  const title = document.getElementById('gpuTitle');
-  const list  = document.getElementById('gpuList');
   const servers = d.servers || [];
 
   if (!d.ok || servers.length === 0) {
-    dot.className = 'gpu-dot off';
-    title.textContent = 'GPU';
-    list.innerHTML = `<div class="gpu-empty">${escHtml(d.error || '离线')}</div>`;
+    renderGpuServer({ ok: false, host: 'GPU', error: d.error || '离线' }, 'gpuDot', 'gpuTitle', 'gpuList');
   } else {
-    const onCount = servers.filter(s => s.ok).length;
-    dot.className = 'gpu-dot ' + (onCount > 0 ? 'on' : 'off');
-    // 单服务器：标题即主机名；多服务器：标题显示在线数，各组带小标题
-    title.textContent = servers.length === 1 ? servers[0].host : `${onCount}/${servers.length} 在线`;
-    list.innerHTML = servers.map(s => `
-      <div class="gpu-server">
-        ${servers.length > 1 ? `
-          <div class="gpu-server-head">
-            <span class="gpu-dot ${s.ok ? 'on' : 'off'}"></span>
-            <span class="gpu-server-name">${escHtml(s.host)}</span>
-          </div>` : ''}
-        ${s.ok ? s.gpus.map(gpuCardHtml).join('')
-               : `<div class="gpu-empty">${escHtml(s.error || '离线')}</div>`}
-      </div>
-    `).join('');
+    renderGpuServer(servers[0], 'gpuDot', 'gpuTitle', 'gpuList');
+    if (servers[1]) renderGpuServer(servers[1], 'gpuDot2', 'gpuTitle2', 'gpuList2');
+  }
+
+  // 第二台服务器出现/消失 → 重算栏目可见性（含设置栏按钮）
+  const has2 = servers.length > 1;
+  if (has2 !== gpu2Exists) {
+    gpu2Exists = has2;
+    applyPaneVisibility();
   }
 
   // 梯子结构变化（卡数/在线服务器变化）时校验年的楼层
@@ -1121,9 +1116,10 @@ function renderGpu(d) {
 }
 
 function fetchGpu() {
-  // GPU 栏隐藏时不拉取；server 端 30 秒无请求会自动停止 ssh 轮询
-  const pane = document.getElementById('paneGpu');
-  if (pane && pane.style.display === 'none') return;
+  // 两个 GPU 栏都隐藏时不拉取；server 端 30 秒无请求会自动停止 ssh 轮询
+  const p1 = document.getElementById('paneGpu');
+  const p2 = document.getElementById('paneGpu2');
+  if (p1.style.display === 'none' && p2.style.display === 'none') return;
   fetch('/api/gpu')
     .then(r => r.json())
     .then(renderGpu)
@@ -1135,7 +1131,7 @@ setInterval(fetchGpu, 5000);
 
 // ── 栏间分隔线系统：每两栏之间一条，拖动调整相邻的固定宽度栏 ──
 const PANE_W_KEY   = 'claude-dash-pane-widths';
-const PANE_DEFAULT = { paneTime: 210, paneGpu: 200 };   // 固定宽度栏的默认宽（弹性栏不在此表）
+const PANE_DEFAULT = { paneTime: 210, paneGpu: 200, paneGpu2: 200 };   // 固定宽度栏的默认宽（弹性栏不在此表）
 const mainBox = document.querySelector('.main');
 const panes   = () => [...mainBox.querySelectorAll(':scope > .pane')];
 const isFixedPane = p => p && getComputedStyle(p).flexGrow === '0';
@@ -1247,27 +1243,33 @@ const PANE_HIDE_KEY = 'claude-dash-pane-hidden';
 let hiddenPanes = new Set();
 try { hiddenPanes = new Set(JSON.parse(localStorage.getItem(PANE_HIDE_KEY)) || []); } catch {}
 
+// 栏不可见 = 用户隐藏 || 第二 GPU 栏在未配置第二台服务器时强制隐藏
+const isPaneOff = id => hiddenPanes.has(id) || (id === 'paneGpu2' && !gpu2Exists);
+
 function applyPaneVisibility() {
   const all = panes();
   all.forEach(p => {
-    p.style.display = hiddenPanes.has(p.id) ? 'none' : '';
+    p.style.display = isPaneOff(p.id) ? 'none' : '';
     p.classList.remove('pane-fill');
   });
   // 可见栏中没有弹性栏时（待办被隐藏），让最后一个可见栏填满
-  const visible = all.filter(p => !hiddenPanes.has(p.id));
+  const visible = all.filter(p => !isPaneOff(p.id));
   if (visible.length && visible.every(p => getComputedStyle(p).flexGrow === '0')) {
     visible[visible.length - 1].classList.add('pane-fill');
   }
-  // 同步设置栏按钮态
-  document.querySelectorAll('#paneSeg button').forEach(b =>
-    b.classList.toggle('active', !hiddenPanes.has(b.dataset.pane)));
+  // 同步设置栏按钮态（GPU 2 按钮仅在配置了第二台时出现）
+  document.querySelectorAll('#paneSeg button').forEach(b => {
+    const id = b.dataset.pane;
+    b.style.display = (id === 'paneGpu2' && !gpu2Exists) ? 'none' : '';
+    b.classList.toggle('active', !hiddenPanes.has(id));
+  });
   localStorage.setItem(PANE_HIDE_KEY, JSON.stringify([...hiddenPanes]));
   syncDividers();
   window.petCheckFloor?.();
 }
 
 function hidePane(id) {
-  const visible = panes().filter(p => !hiddenPanes.has(p.id));
+  const visible = panes().filter(p => !isPaneOff(p.id));
   if (visible.length <= 1) return;   // 至少保留一栏
   hiddenPanes.add(id);
   applyPaneVisibility();
