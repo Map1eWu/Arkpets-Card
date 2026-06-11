@@ -61,6 +61,28 @@ node server.js
 | `MAX_FLOOR_Y` | CARD_H−50 | 可落/可坐线的最大高度 |
 | `GRAVITY` | 1200 | 拖拽释放后的下落加速度 px/s² |
 
+## 更换桌宠模型
+
+模型与 [ArkPets-Web](https://github.com/fuyufjh/ArkPets-Web) 同源，来自 [Ark-Models](https://github.com/isHarryh/Ark-Models) 模型库。其 `models/` 目录下每个文件夹是一只干员基建小人，由 `.skel` + `.atlas` + `.png` 三件套组成（具体清单见仓库根目录的 `models_data.json`）。
+
+1. 在 Ark-Models 的 `models/` 中找到想要的干员，下载整个文件夹，放到本项目根目录（与 `2014_nian_nian#4/` 同级）
+2. 修改 `claude-dashboard.html` 桌宠模块顶部的四个常量，例如：
+
+   ```js
+   const MODEL_DIR  = '/xxxx_name/';            // 文件夹名；特殊字符需 URL 编码（如 # → %23）
+   const SKEL_KEY   = 'build_char_xxxx_name.skel';
+   const ATLAS_KEY  = 'build_char_xxxx_name.atlas';
+   const PNG_KEY    = 'build_char_xxxx_name.png';
+   ```
+
+3. 刷新页面即可，体型不合适就调 `SCALE`
+
+**注意事项**
+
+- 必须是 Spine 3.8 的**基建小人**（`models/` 目录）；`models_enemies/`（敌人）与 `models_illust/`（动态立绘）动画名不同，不能直接用
+- 模型需包含 `Relax` / `Move` / `Sit` / `Sleep` / `Interact` 动画，个别"载具型"模型缺 `Sit`/`Sleep`，暂不支持
+- Ark-Models 自 2025 年 3 月起对所有纹理启用了 Premultiplied Alpha；如果新模型渲染出黑边/白边，把 `claude-dashboard.html` 中 WebGL 初始化处的 `premultipliedAlpha: false` 与 `renderer.premultipliedAlpha = false` 改为 `true`
+
 ## 致谢与版权
 
 - 行为设计与 Spine 加载方案参考 [ArkPets-Web](https://github.com/fuyufjh/ArkPets-Web) 与 [Ark-Pets](https://github.com/isHarryh/Ark-Pets)
