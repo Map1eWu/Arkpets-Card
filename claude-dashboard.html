@@ -519,10 +519,11 @@ body {
   letter-spacing: 0.02em;
 }
 
-.usage-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* 重置桌宠按钮：footer 右上角，站台线上方 */
+.pet-reset {
+  position: absolute;
+  top: 8px;
+  right: 14px;
 }
 
 .usage-refresh {
@@ -695,15 +696,9 @@ body {
       <img src="img/claude-color.svg" width="13" height="13" alt="Claude">
       Claude Code 用量
     </div>
-    <div class="usage-actions">
-      <div class="usage-refresh" id="petResetBtn" title="重置桌宠位置" onclick="window.petReset && window.petReset()">
-        <span class="usage-refresh-icon">↺</span>
-        <span>年</span>
-      </div>
-      <div class="usage-refresh" id="refreshBtn" onclick="refreshUsage()">
-        <span class="usage-refresh-icon">↻</span>
-        <span id="refreshTime">--:--</span>
-      </div>
+    <div class="usage-refresh" id="refreshBtn" onclick="refreshUsage()">
+      <span class="usage-refresh-icon">↻</span>
+      <span id="refreshTime">--:--</span>
     </div>
   </div>
   <div class="usage-rows">
@@ -728,6 +723,11 @@ body {
   </div>
   <!-- 年的站台：footer 右侧装饰横线 -->
   <div id="pet-perch"></div>
+  <!-- 重置桌宠：footer 右上角（站台上方） -->
+  <div class="usage-refresh pet-reset" id="petResetBtn" title="重置桌宠位置" onclick="window.petReset && window.petReset()">
+    <span class="usage-refresh-icon">↺</span>
+    <span>年</span>
+  </div>
 </footer>
 
 <!-- 桌宠 canvas -->
@@ -868,19 +868,38 @@ function fetchWeather(lat, lon) {
     });
 }
 
-// 首次定位成功后缓存坐标，供定时刷新复用（不重复请求定位权限）
+// 首次定位成功后缓存坐标（内存 + localStorage），供定时刷新与下次启动复用
 let _coords = null;
+const COORDS_KEY = 'claude-dash-coords';
 
 function initWeather() {
+  // 上次的坐标先顶上：天气立刻可见，定位在后台校准
+  try {
+    const saved = JSON.parse(localStorage.getItem(COORDS_KEY));
+    if (saved) {
+      _coords = saved;
+      fetchWeather(_coords.latitude, _coords.longitude);
+    }
+  } catch {}
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       pos => {
-        _coords = pos.coords;
-        fetchWeather(_coords.latitude, _coords.longitude);
+        const fresh = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        // 位置没怎么变就不重复请求天气
+        const moved = !_coords ||
+          Math.abs(fresh.latitude  - _coords.latitude)  > 0.01 ||
+          Math.abs(fresh.longitude - _coords.longitude) > 0.01;
+        _coords = fresh;
+        localStorage.setItem(COORDS_KEY, JSON.stringify(fresh));
+        if (moved) fetchWeather(_coords.latitude, _coords.longitude);
       },
-      ()  => { document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">请允许位置权限</div>'; }
+      ()  => {
+        if (!_coords) document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">请允许位置权限</div>';
+      },
+      { maximumAge: 10 * 60 * 1000, timeout: 10000, enableHighAccuracy: false }
     );
-  } else {
+  } else if (!_coords) {
     document.getElementById('weatherBlock').innerHTML = '<div class="weather-loading">不支持定位</div>';
   }
 }
