@@ -411,7 +411,23 @@ body {
 .gpu-dot.on  { background: var(--done); }
 .gpu-dot.off { background: var(--accent); }
 
+.gpu-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .gpu-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第二行：ssh 目标（别名 / user@ip） */
+.gpu-addr {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -868,7 +884,10 @@ body {
     <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="gpu-header">
       <span class="gpu-dot" id="gpuDot"></span>
-      <span class="gpu-title" id="gpuTitle">GPU</span>
+      <span class="gpu-title-wrap">
+        <span class="gpu-title" id="gpuTitle">GPU</span>
+        <span class="gpu-addr" id="gpuAddr"></span>
+      </span>
     </div>
     <div class="gpu-list" id="gpuList">
       <div class="gpu-empty">连接中…</div>
@@ -880,7 +899,10 @@ body {
     <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="gpu-header">
       <span class="gpu-dot" id="gpuDot2"></span>
-      <span class="gpu-title" id="gpuTitle2">GPU</span>
+      <span class="gpu-title-wrap">
+        <span class="gpu-title" id="gpuTitle2">GPU</span>
+        <span class="gpu-addr" id="gpuAddr2"></span>
+      </span>
     </div>
     <div class="gpu-list" id="gpuList2">
       <div class="gpu-empty">连接中…</div>
@@ -1079,12 +1101,15 @@ function gpuCardHtml(g) {
 
 let gpu2Exists = false;   // 是否配置了第二台服务器（决定 paneGpu2 是否存在）
 
-function renderGpuServer(s, dotId, titleId, listId) {
+function renderGpuServer(s, dotId, titleId, addrId, listId) {
   const dot   = document.getElementById(dotId);
   const title = document.getElementById(titleId);
+  const addr  = document.getElementById(addrId);
   const list  = document.getElementById(listId);
   dot.className = 'gpu-dot ' + (s.ok ? 'on' : 'off');
-  title.textContent = s.host || 'GPU';
+  // 第一行：服务器 hostname（离线且未知时退回 ssh 目标）；第二行：ssh 目标
+  title.textContent = s.name || s.host || 'GPU';
+  addr.textContent  = s.name ? (s.host || '') : '';
   list.innerHTML = s.ok
     ? s.gpus.map(gpuCardHtml).join('')
     : `<div class="gpu-empty">${escHtml(s.error || '离线')}</div>`;
@@ -1094,10 +1119,10 @@ function renderGpu(d) {
   const servers = d.servers || [];
 
   if (!d.ok || servers.length === 0) {
-    renderGpuServer({ ok: false, host: 'GPU', error: d.error || '离线' }, 'gpuDot', 'gpuTitle', 'gpuList');
+    renderGpuServer({ ok: false, host: 'GPU', error: d.error || '离线' }, 'gpuDot', 'gpuTitle', 'gpuAddr', 'gpuList');
   } else {
-    renderGpuServer(servers[0], 'gpuDot', 'gpuTitle', 'gpuList');
-    if (servers[1]) renderGpuServer(servers[1], 'gpuDot2', 'gpuTitle2', 'gpuList2');
+    renderGpuServer(servers[0], 'gpuDot', 'gpuTitle', 'gpuAddr', 'gpuList');
+    if (servers[1]) renderGpuServer(servers[1], 'gpuDot2', 'gpuTitle2', 'gpuAddr2', 'gpuList2');
   }
 
   // 第二台服务器出现/消失 → 重算栏目可见性（含设置栏按钮）

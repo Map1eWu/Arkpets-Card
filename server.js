@@ -65,7 +65,8 @@ function readEnv() {
 
 // 支持逗号分隔多台服务器，上限 2 台
 const GPU_HOSTS = (readEnv().GPU_HOST || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 2);
-const GPU_QUERY = 'nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits';
+// 第一行回传服务器 hostname，其余为各卡数据
+const GPU_QUERY = 'hostname && nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits';
 const SSH_OPTS  = [
   '-o', 'BatchMode=yes',          // 只走免密，不卡在密码提示
   '-o', 'ConnectTimeout=4',
@@ -91,11 +92,13 @@ function pollGpuHost(i) {
   child.on('close', code => {
     gpuPolling.delete(i);
     if (code === 0 && out.trim()) {
-      const gpus = out.trim().split('\n').filter(Boolean).map(l => {
+      const lines    = out.trim().split('\n').filter(Boolean);
+      const hostname = lines[0].includes(',') ? '' : lines.shift().trim();
+      const gpus = lines.map(l => {
         const [index, name, util, memUsed, memTotal, temp] = l.split(',').map(s => s.trim());
         return { index: +index, name, util: +util, memUsed: +memUsed, memTotal: +memTotal, temp: +temp };
       });
-      gpuCaches[i] = { host: GPU_HOSTS[i], ok: true, gpus, updatedAt: new Date().toISOString(), error: null };
+      gpuCaches[i] = { host: GPU_HOSTS[i], name: hostname, ok: true, gpus, updatedAt: new Date().toISOString(), error: null };
     } else {
       gpuCaches[i] = { ...gpuCaches[i], ok: false, error: (err.trim().split('\n')[0] || `ssh 退出码 ${code}`) };
     }
