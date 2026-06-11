@@ -244,6 +244,35 @@ body {
 
 #paneDivider:hover, #paneDivider.dragging { background: var(--accent); }
 
+/* 栏位拖拽手柄：悬停栏内浮现于右上角 */
+.pane { position: relative; }
+
+.pane-grip {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 3px 5px;
+  border-radius: 4px;
+  user-select: none;
+  z-index: 4;
+}
+
+.pane:hover .pane-grip { opacity: 0.55; }
+.pane-grip:hover { opacity: 1 !important; background: var(--card); }
+
+/* 拖拽中的栏 */
+.pane.drag-src {
+  opacity: 0.55;
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
 .time-display {
   font-size: 56px;
   font-weight: 200;
@@ -699,7 +728,8 @@ body {
 <div class="main">
 
   <!-- Left: Time + Weather -->
-  <div class="left">
+  <div class="left pane" id="paneTime">
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="time-block">
       <div class="time-display" id="clock">--:--</div>
       <div class="time-meta">
@@ -716,7 +746,8 @@ body {
   <div id="paneDivider" title="拖动调整宽度，双击复位"></div>
 
   <!-- Right: Todo -->
-  <div class="right">
+  <div class="right pane" id="paneTodo">
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
     <div class="todo-header">
       <div class="todo-title">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -906,8 +937,10 @@ divider.addEventListener('pointerdown', e => {
   divider.classList.add('dragging');
   document.body.style.userSelect = 'none';
 
+  // 栏位可能被调换：分隔线拖动方向取决于固定宽度栏在分隔线的哪一侧
+  const sign = document.querySelector('.main > .pane') === leftPane ? 1 : -1;
   const onMove = ev => {
-    const w = Math.max(170, Math.min(320, startW + (ev.clientX - startX) / sc));
+    const w = Math.max(170, Math.min(320, startW + sign * (ev.clientX - startX) / sc));
     leftPane.style.width = w + 'px';
   };
   divider.addEventListener('pointermove', onMove);
@@ -925,6 +958,62 @@ divider.addEventListener('dblclick', () => {
   leftPane.style.width = '210px';
   localStorage.removeItem(LEFT_W_KEY);
   window.petCheckFloor?.();
+});
+
+// ── 栏位拖拽调换（按住 ☰ 拖到另一栏，实时换位；支持后续加栏）──
+const PANE_KEY = 'claude-dash-pane-order';
+const mainBox  = document.querySelector('.main');
+const panes    = () => [...mainBox.querySelectorAll(':scope > .pane')];
+
+// 分隔线始终保持在第 1、2 栏之间
+function placeDivider() {
+  const second = panes()[1];
+  if (second) mainBox.insertBefore(divider, second);
+}
+
+// 恢复保存的栏序
+try {
+  const order = JSON.parse(localStorage.getItem(PANE_KEY));
+  if (Array.isArray(order)) {
+    order.forEach(id => {
+      const p = document.getElementById(id);
+      if (p) mainBox.appendChild(p);
+    });
+    placeDivider();
+  }
+} catch {}
+
+document.querySelectorAll('.pane-grip').forEach(grip => {
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const src = grip.closest('.pane');
+    src.classList.add('drag-src');
+    grip.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = 'none';
+
+    const onMove = ev => {
+      // 指针进入哪一栏，就把拖拽栏实时换到那个位置
+      const target = panes().find(p => {
+        if (p === src) return false;
+        const r = p.getBoundingClientRect();
+        return ev.clientX >= r.left && ev.clientX <= r.right;
+      });
+      if (target) {
+        const list = panes();
+        if (list.indexOf(src) < list.indexOf(target)) target.after(src);
+        else target.before(src);
+        placeDivider();
+      }
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', () => {
+      grip.removeEventListener('pointermove', onMove);
+      src.classList.remove('drag-src');
+      document.body.style.userSelect = '';
+      localStorage.setItem(PANE_KEY, JSON.stringify(panes().map(p => p.id)));
+      window.petCheckFloor?.();   // 栏位挪动 = 所有线重排，校验年的楼层
+    }, { once: true });
+  });
 });
 
 // ── Clock & Date ───────────────────────────────────────────
