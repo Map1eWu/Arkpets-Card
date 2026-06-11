@@ -659,7 +659,7 @@ body {
 /* ── Footer: Usage ── */
 .footer {
   border-top: 1px solid var(--border);
-  padding: 11px 20px 12px;
+  padding: 9px 20px 7px;
   flex-shrink: 0;
   background: var(--surface);
   position: relative;
@@ -814,6 +814,12 @@ body {
   color: var(--track);
   text-align: center;
   margin-top: 4px;
+}
+
+/* 装饰图片层：由 DECOS 配置生成；z-index 上限 4，年（canvas z=5）恒在最上 */
+.deco-img {
+  position: absolute;
+  pointer-events: none;
 }
 
 /* ── Claude Logo SVG ── */
@@ -1352,6 +1358,29 @@ document.querySelectorAll('.pane-grip').forEach(grip => {
       window.petCheckFloor?.();   // 栏位挪动 = 所有线重排，校验年的楼层
     }, { once: true });
   });
+});
+
+// ── 装饰图片层 ─────────────────────────────────────────────
+// 每行一张图：src 路径；位置用 right/bottom 或 left/top（距卡片边缘 px，可混用）；
+// width 显示宽度 px（高度等比缩放）；z 层级 1~4（年的 canvas 是 5，恒在最上）；
+// 可选 opacity（0~1）、rotate（角度）。示例：
+//   { src: 'img/sticker.png', right: 12, bottom: 110, width: 90, z: 1, opacity: 0.9, rotate: -8 },
+const DECOS = [
+];
+
+DECOS.forEach(d => {
+  const img = document.createElement('img');
+  img.src = d.src;
+  img.className = 'deco-img';
+  img.alt = '';
+  ['left', 'right', 'top', 'bottom'].forEach(k => {
+    if (d[k] != null) img.style[k] = d[k] + 'px';
+  });
+  img.style.width  = (d.width || 80) + 'px';
+  img.style.zIndex = Math.min(d.z ?? 1, 4);
+  if (d.opacity != null) img.style.opacity = d.opacity;
+  if (d.rotate) img.style.transform = `rotate(${d.rotate}deg)`;
+  document.getElementById('card').appendChild(img);
 });
 
 // ── Clock & Date ───────────────────────────────────────────
