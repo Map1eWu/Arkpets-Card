@@ -669,8 +669,8 @@ body {
 #pet-perch {
   position: absolute;
   right: 0;
-  width: 155px;          /* (usage-body右边缘 + 卡片右边缘) / 2 到右边缘 */
-  top: 55px;             /* footer内：padding(11) + header(18) + margin(9) + row1(16) */
+  width: 150px;          /* (usage-body右边缘 + 卡片右边缘) / 2 到右边缘 */
+  top: 70px;             /* footer内：padding(11) + header(18) + margin(9) + row1(16) */
   height: 0;
   border-top: 1px solid var(--border);
   opacity: 1;
@@ -979,7 +979,7 @@ body {
   <div class="usage-note" id="usageNote">请运行 update-usage.js 以加载真实数据</div>
   </div>
   <!-- 年的站台：footer 右侧装饰横线 -->
-  <div id="pet-perch"></div>
+  <!-- <div id="pet-perch"></div> -->
   <!-- 重置桌宠：footer 右上角（站台上方） -->
   <div class="usage-refresh pet-reset" id="petResetBtn" title="重置桌宠位置" onclick="window.petReset && window.petReset()">
     <span class="usage-refresh-icon">↺</span>
@@ -1366,6 +1366,10 @@ document.querySelectorAll('.pane-grip').forEach(grip => {
 // 可选 opacity（0~1）、rotate（角度）。示例：
 //   { src: 'img/sticker.png', right: 12, bottom: 110, width: 90, z: 1, opacity: 0.9, rotate: -8 },
 const DECOS = [
+  // { src: 'img/bed.png', right: 0, bottom: -30, width: 180, z: 2, opacity: 0.9, rotate: 0 },
+  // { src: 'img/byobu.png', right: -40, bottom: -20, width: 250, z: 1, opacity: 0.9, rotate: 0 },
+  { src: 'img/1.png', right: 0, bottom: -30, width: 180, z: 2, opacity: 0.9, rotate: 0 },
+  { src: 'img/2.png', right: -40, bottom: -20, width: 250, z: 1, opacity: 0.9, rotate: 0 },
 ];
 
 DECOS.forEach(d => {
@@ -1738,6 +1742,15 @@ const ALARM_ON    = 80;          // 5 小时用量 ≥80% → 年去用量条上
 const ALARM_SLEEP = 95;          // ≥95% → 值班姿势改为 Sleep（躺平）
 const ALARM_OFF   = 75;          // 回落到 <75% 才解除（滞回，防止阈值附近来回横跳）
 
+// 床（右下角装饰图）：年在地面、x 进入吸附范围时，坐/躺直接吸附到床上
+// 以下坐标/范围自行调整；y 为床面高度（floorY），dir 1=朝右 -1=朝左（不填保持当前朝向）
+const BED = {
+  x:     738,                        // 吸附判定锚点（床中心 x）
+  range: 80,                         // |年x − 床x| ≤ range 时触发吸附
+  sit:   { x: 738, y: 18, dir: -1 }, // 坐姿坐标
+  sleep: { x: 735, y: 16, dir:  1 }, // 躺姿坐标
+};
+
 // 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
 // Interact 仅由点击触发（所有行概率为 0），播完必回 Relax
 const STATES  = ['Relax', 'Move', 'Sit', 'Sleep', 'Interact'];
@@ -1899,8 +1912,27 @@ async function initPet() {
   let dir     = -1; // -1 = 面向左，1 = 面向右
   state.setAnimation(0, curAnim, true);
 
+  // ── 床吸附 ───────────────────────────────────────────────
+  let onBed = false;
+
+  function bedSnap(kind) {
+    const pose = BED && BED[kind];
+    if (!pose || mode !== 'auto') return false;
+    if (currentFloorY > FLOOR_Y + 4) return false;        // 只在地面附近触发
+    const sx = skeleton.x / PR;
+    if (Math.abs(sx - BED.x) > BED.range) return false;   // 不在吸附范围
+    skeleton.x    = pose.x * PR;
+    currentFloorY = pose.y;
+    skeleton.y    = pose.y * PR;
+    if (pose.dir) dir = pose.dir;
+    onBed = true;
+    console.log(`年 上床（${kind}）x=${pose.x} y=${pose.y}`);
+    return true;
+  }
+
   // 跳到目标线：更新楼层与走动边界，并把 x 夹进新边界
   function jumpTo(target) {
+    onBed = false;
     currentFloorY = target.y;
     skeleton.y    = currentFloorY * PR;
     // 走动边界留边距；x 不吸附——落在边缘时把边界扩到当前位置，Move 到此折返
@@ -1922,9 +1954,12 @@ async function initPet() {
       const prev = curAnim;
       let next = pickNext(prev);
 
-      // 首次进入 Sit：先找附近可坐的线（y >= SIT_MIN_H），60% 概率跳过去坐
+      // 首次进入 Sleep：在床边就躺床上
+      if (next === 'Sleep' && prev !== 'Sleep') bedSnap('sleep');
+
+      // 首次进入 Sit：床吸附优先；否则找附近可坐的线（y >= SIT_MIN_H），60% 概率跳过去坐
       // （Sit→Sit 续播不重新选线）
-      if (next === 'Sit' && prev !== 'Sit') {
+      if (next === 'Sit' && prev !== 'Sit' && !bedSnap('sit')) {
         const sittable = findNearbyLines(currentFloorY).filter(ln => ln.y >= SIT_MIN_H);
         if (sittable.length > 0 && Math.random() < 0.6) {
           jumpTo(sittable[Math.floor(Math.random() * sittable.length)]);
@@ -1933,6 +1968,13 @@ async function initPet() {
           next = 'Relax';
         }
         // 当前楼层可坐 → 就地坐下，不改楼层
+      }
+
+      // 起身离床（转去非坐/躺状态）：恢复地面高度
+      if (onBed && next !== 'Sit' && next !== 'Sleep') {
+        onBed = false;
+        currentFloorY = FLOOR_Y;
+        skeleton.y    = FLOOR_Y * PR;
       }
 
       // 坐够/睡醒起身（Sit/Sleep→Relax）时：30% 概率跳到下方的线或地面（含虚拟地面线）
@@ -1956,6 +1998,7 @@ async function initPet() {
   // 当前楼层的线消失或 x 范围不再覆盖年的位置 → 自然下落
   window.petCheckFloor = () => {
     if (mode !== 'auto' || currentFloorY <= FLOOR_Y) return;
+    if (onBed) return;   // 床不是 DOM 线，床上不做楼层失效判定
     const sx = skeleton.x / PR;
     const ok = getHorizontalLines().some(ln =>
       Math.abs(ln.y - currentFloorY) <= 2 && sx >= ln.left && sx <= ln.right
@@ -1973,7 +2016,7 @@ async function initPet() {
     sessionStorage.setItem(PET_KEY, JSON.stringify({
       x: skeleton.x / PR, floorY: currentFloorY,
       xMin: currentXMin, xMax: currentXMax,
-      anim: curAnim, dir,
+      anim: curAnim, dir, bed: onBed,
     }));
   }
 
@@ -1987,6 +2030,7 @@ async function initPet() {
       currentXMin   = s.xMin;
       currentXMax   = s.xMax;
       dir = s.dir || -1;
+      onBed = !!s.bed;
       if (s.anim && has(s.anim) && s.anim !== 'Interact') {
         curAnim = s.anim;
         state.setAnimation(0, curAnim, true);
@@ -1998,6 +2042,7 @@ async function initPet() {
   window.petReset = () => {
     sessionStorage.removeItem(PET_KEY);
     task = null; alarm.level = 0; alarm.state = 'off'; alarm.dismissed = 0;
+    onBed = false;
     mode = 'auto'; fallVy = 0; dragStart = null;
     currentFloorY = FLOOR_Y; currentXMin = X_MIN; currentXMax = X_MAX;
     skeleton.x = INIT_X * PR; skeleton.y = FLOOR_Y * PR;
@@ -2125,6 +2170,7 @@ async function initPet() {
       dragStart.moved = true;
       // 值班/赶路中被拖走：尊重用户，本轮不再返岗（直到更高阈值或额度重置）
       if (alarm.state !== 'off') { alarm.dismissed = alarm.level; alarm.state = 'off'; task = null; }
+      onBed = false;
       mode = 'drag';
       if (curAnim !== 'Relax') { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
     }
