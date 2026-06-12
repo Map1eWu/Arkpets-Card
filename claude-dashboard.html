@@ -1017,22 +1017,36 @@ const LIMIT_5H  = 1_000_000;   // adjust to your plan
 const LIMIT_7D  = 10_000_000;  // adjust to your plan
 
 // Weather code → { icon, desc }
+// WMO 天气代码完整表（Open-Meteo 文档 weathercode 全集）
 const WMO = {
   0:  { icon:'☀️',  desc:'晴天' },
-  1:  { icon:'🌤️', desc:'少云' },
+  1:  { icon:'🌤️', desc:'基本晴' },
   2:  { icon:'⛅',  desc:'多云' },
   3:  { icon:'☁️',  desc:'阴天' },
   45: { icon:'🌫️', desc:'雾' },
-  48: { icon:'🌫️', desc:'浓雾' },
+  48: { icon:'🌫️', desc:'雾凇' },
   51: { icon:'🌦️', desc:'毛毛雨' },
+  53: { icon:'🌦️', desc:'毛毛雨' },
+  55: { icon:'🌧️', desc:'浓毛毛雨' },
+  56: { icon:'🌧️', desc:'冻毛毛雨' },
+  57: { icon:'🌧️', desc:'冻毛毛雨' },
   61: { icon:'🌧️', desc:'小雨' },
   63: { icon:'🌧️', desc:'中雨' },
   65: { icon:'🌧️', desc:'大雨' },
+  66: { icon:'🌧️', desc:'冻雨' },
+  67: { icon:'🌧️', desc:'强冻雨' },
   71: { icon:'🌨️', desc:'小雪' },
   73: { icon:'❄️',  desc:'中雪' },
   75: { icon:'❄️',  desc:'大雪' },
+  77: { icon:'🌨️', desc:'雪粒' },
   80: { icon:'🌦️', desc:'阵雨' },
+  81: { icon:'🌧️', desc:'中阵雨' },
+  82: { icon:'🌧️', desc:'强阵雨' },
+  85: { icon:'🌨️', desc:'阵雪' },
+  86: { icon:'❄️',  desc:'强阵雪' },
   95: { icon:'⛈️',  desc:'雷暴' },
+  96: { icon:'⛈️',  desc:'雷暴冰雹' },
+  99: { icon:'⛈️',  desc:'强雷暴冰雹' },
 };
 
 // ── 设置 & 主题 ────────────────────────────────────────────
@@ -1742,7 +1756,7 @@ const INIT_X    = 675;          // 初始 x 位置（px，0=左 800=右）
 const WALK_SPD  = 35;           // px/s
 const X_MIN     = 50;
 const X_MAX     = 750;
-const SCALE      = 0.3;
+const SCALE      = 1;
 const JUMP_RANGE = 65;         // Sit 时向上/下寻找横线的最大距离（px）
 const SIT_MIN_H  = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
 const GRAVITY    = 1200;       // 拖拽释放后的下落加速度（px/s²）
