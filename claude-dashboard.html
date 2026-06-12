@@ -1772,7 +1772,7 @@ const BED = {
   x:     738,                        // 吸附判定锚点（床中心 x）
   range: 150,                         // |年x − 床x| ≤ range 时触发吸附
   sit:   { x: 715, y: 25, dir: -1 }, // 坐姿坐标
-  sleep: { x: 695, y: 28, dir: -1, scale: 1 }, // 躺姿坐标；scale=床上临时缩放（1=原大小，sit 同样支持）
+  sleep: { x: 705, y: 28, dir: -1, scale: 0.8 }, // 躺姿坐标；scale=床上临时缩放（1=原大小，sit 同样支持）
 };
 
 // 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
