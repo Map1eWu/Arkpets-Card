@@ -1019,10 +1019,10 @@ const LIMIT_7D  = 10_000_000;  // adjust to your plan
 // Weather code → { icon, desc }
 // WMO 天气代码完整表（Open-Meteo 文档 weathercode 全集）
 const WMO = {
-  0:  { icon:'☀️',  desc:'晴天' },
+  0:  { icon:'☀️', desc:'晴天' },
   1:  { icon:'🌤️', desc:'基本晴' },
-  2:  { icon:'⛅',  desc:'多云' },
-  3:  { icon:'☁️',  desc:'阴天' },
+  2:  { icon:'⛅', desc:'多云' },
+  3:  { icon:'☁️', desc:'阴天' },
   45: { icon:'🌫️', desc:'雾' },
   48: { icon:'🌫️', desc:'雾凇' },
   51: { icon:'🌦️', desc:'毛毛雨' },
@@ -1036,17 +1036,17 @@ const WMO = {
   66: { icon:'🌧️', desc:'冻雨' },
   67: { icon:'🌧️', desc:'强冻雨' },
   71: { icon:'🌨️', desc:'小雪' },
-  73: { icon:'❄️',  desc:'中雪' },
-  75: { icon:'❄️',  desc:'大雪' },
+  73: { icon:'❄️', desc:'中雪' },
+  75: { icon:'❄️', desc:'大雪' },
   77: { icon:'🌨️', desc:'雪粒' },
   80: { icon:'🌦️', desc:'阵雨' },
   81: { icon:'🌧️', desc:'中阵雨' },
   82: { icon:'🌧️', desc:'强阵雨' },
   85: { icon:'🌨️', desc:'阵雪' },
-  86: { icon:'❄️',  desc:'强阵雪' },
-  95: { icon:'⛈️',  desc:'雷暴' },
-  96: { icon:'⛈️',  desc:'雷暴冰雹' },
-  99: { icon:'⛈️',  desc:'强雷暴冰雹' },
+  86: { icon:'❄️', desc:'强阵雪' },
+  95: { icon:'⛈️', desc:'雷暴' },
+  96: { icon:'⛈️', desc:'雷暴冰雹' },
+  99: { icon:'⛈️', desc:'强雷暴冰雹' },
 };
 
 // ── 设置 & 主题 ────────────────────────────────────────────
@@ -1749,18 +1749,18 @@ const ATLAS_KEY  = 'build_char_2014_nian_nian#4.atlas';
 const PNG_KEY    = 'build_char_2014_nian_nian#4.png';
 
 // ── 行为参数 ───────────────────────────────────────────────
-const CARD_W    = 800;
-const CARD_H    = 480;
-const FLOOR_Y   = 0;           // 距卡片底部的地面高度（px），与 footer 对齐
-const INIT_X    = 675;          // 初始 x 位置（px，0=左 800=右）
-const WALK_SPD  = 35;           // px/s
-const X_MIN     = 50;
-const X_MAX     = 750;
-const SCALE      = 1;
-const JUMP_RANGE = 65;         // Sit 时向上/下寻找横线的最大距离（px）
-const SIT_MIN_H  = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
-const GRAVITY    = 1200;       // 拖拽释放后的下落加速度（px/s²）
-const CLICK_DIST = 4;          // 按下后移动距离小于此视为点击（px）
+const CARD_W      = 800;
+const CARD_H      = 480;
+const FLOOR_Y     = 0;           // 距卡片底部的地面高度（px），与 footer 对齐
+const INIT_X      = 675;          // 初始 x 位置（px，0=左 800=右）
+const WALK_SPD    = 35;           // px/s
+const X_MIN       = 50;
+const X_MAX       = 750;
+const SCALE       = 0.3;
+const JUMP_RANGE  = 65;         // Sit 时向上/下寻找横线的最大距离（px）
+const SIT_MIN_H   = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
+const GRAVITY     = 1200;       // 拖拽释放后的下落加速度（px/s²）
+const CLICK_DIST  = 4;          // 按下后移动距离小于此视为点击（px）
 const MAX_FLOOR_Y = CARD_H - 150; // 可落/可坐横线的最大高度，太高会越出卡片上界
 const ALARM_ON    = 80;          // 5 小时用量 ≥80% → 年去用量条上值班
 const ALARM_SLEEP = 95;          // ≥95% → 值班姿势改为 Sleep（躺平）
@@ -1772,7 +1772,7 @@ const BED = {
   x:     738,                        // 吸附判定锚点（床中心 x）
   range: 150,                         // |年x − 床x| ≤ range 时触发吸附
   sit:   { x: 715, y: 25, dir: -1 }, // 坐姿坐标
-  sleep: { x: 695, y: 28, dir: -1 }, // 躺姿坐标
+  sleep: { x: 695, y: 28, dir: -1, scale: 1 }, // 躺姿坐标；scale=床上临时缩放（1=原大小，sit 同样支持）
 };
 
 // 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
@@ -1938,6 +1938,7 @@ async function initPet() {
 
   // ── 床吸附 ───────────────────────────────────────────────
   let onBed = false;
+  let petScale = 1;   // 运行时缩放因子（床上姿势可临时改变体型，离床还原）
 
   function bedSnap(kind) {
     const pose = BED && BED[kind];
@@ -1949,6 +1950,7 @@ async function initPet() {
     currentFloorY = pose.y;
     skeleton.y    = pose.y * PR;
     if (pose.dir) dir = pose.dir;
+    petScale = pose.scale || 1;
     onBed = true;
     console.log(`年 上床（${kind}）x=${pose.x} y=${pose.y} dir=${dir === 1 ? '右' : '左'}`);
     return true;
@@ -1957,6 +1959,7 @@ async function initPet() {
   // 跳到目标线：更新楼层与走动边界，并把 x 夹进新边界
   function jumpTo(target) {
     onBed = false;
+    petScale = 1;
     currentFloorY = target.y;
     skeleton.y    = currentFloorY * PR;
     // 走动边界留边距；x 不吸附——落在边缘时把边界扩到当前位置，Move 到此折返
@@ -1994,9 +1997,10 @@ async function initPet() {
         // 当前楼层可坐 → 就地坐下，不改楼层
       }
 
-      // 起身离床（转去非坐/躺状态）：恢复地面高度
+      // 起身离床（转去非坐/躺状态）：恢复地面高度与体型
       if (onBed && next !== 'Sit' && next !== 'Sleep') {
         onBed = false;
+        petScale = 1;
         currentFloorY = FLOOR_Y;
         skeleton.y    = FLOOR_Y * PR;
       }
@@ -2067,6 +2071,7 @@ async function initPet() {
           currentFloorY = pose.y;
           skeleton.y    = pose.y * PR;
           if (pose.dir) dir = pose.dir;
+          petScale = pose.scale || 1;
         } else {
           onBed = false;
         }
@@ -2078,7 +2083,7 @@ async function initPet() {
   window.petReset = () => {
     sessionStorage.removeItem(PET_KEY);
     task = null; alarm.level = 0; alarm.state = 'off'; alarm.dismissed = 0;
-    onBed = false;
+    onBed = false; petScale = 1;
     mode = 'auto'; fallVy = 0; dragStart = null;
     currentFloorY = FLOOR_Y; currentXMin = X_MIN; currentXMax = X_MAX;
     skeleton.x = INIT_X * PR; skeleton.y = FLOOR_Y * PR;
@@ -2183,7 +2188,7 @@ async function initPet() {
     if (name === 'Sleep' && prev !== 'Sleep') bedSnap('sleep');
     if (name === 'Sit'   && prev !== 'Sit')   bedSnap('sit');
     if (onBed && name !== 'Sit' && name !== 'Sleep') {
-      onBed = false; currentFloorY = FLOOR_Y; skeleton.y = FLOOR_Y * PR;
+      onBed = false; petScale = 1; currentFloorY = FLOOR_Y; skeleton.y = FLOOR_Y * PR;
     }
     state.setAnimation(0, name, name !== 'Interact');
     curAnim = name;
@@ -2223,6 +2228,7 @@ async function initPet() {
       // 值班/赶路中被拖走：尊重用户，本轮不再返岗（直到更高阈值或额度重置）
       if (alarm.state !== 'off') { alarm.dismissed = alarm.level; alarm.state = 'off'; task = null; }
       onBed = false;
+      petScale = 1;
       mode = 'drag';
       if (curAnim !== 'Relax') { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
     }
@@ -2330,10 +2336,11 @@ async function initPet() {
       else if (skeleton.x > currentXMax * PR) { skeleton.x = currentXMax * PR; dir = -1; }
     }
 
-    // 朝向（Spine 默认面朝右，scaleX=-1 翻转）
+    // 朝向（Spine 默认面朝右，scaleX=-1 翻转）× 运行时缩放（床上体型）
     // 注意：朝向一律由 dir 驱动，不要在这里按动画名特判——
     // 值班躺平固定朝右由 postAlarmPose 设 dir=1 实现，床上朝向由 BED.*.dir 控制
-    skeleton.scaleX = dir > 0 ? 1 : -1;
+    skeleton.scaleX = (dir > 0 ? 1 : -1) * petScale;
+    skeleton.scaleY = petScale;
 
     // 渲染
     gl.viewport(0, 0, CW, CH);
