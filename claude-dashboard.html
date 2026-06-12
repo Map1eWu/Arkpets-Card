@@ -861,6 +861,8 @@ body {
   </div>
   <span class="settings-label settings-label-gap">开机自启</span>
   <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
+  <span class="settings-label settings-label-gap">复位键</span>
+  <button class="switch" id="petResetVisToggle" title="显示/隐藏右下角的桌宠复位按钮"></button>
 </div>
 
 <!-- Main -->
@@ -1105,6 +1107,24 @@ autostartToggle.addEventListener('click', () => {
 });
 
 refreshAutostart();
+
+// ── 桌宠复位键显隐开关 ──────────────────────────────────────
+const PET_RESET_VIS_KEY = 'claude-dash-petreset-visible';
+const petResetVisToggle = document.getElementById('petResetVisToggle');
+
+function applyPetResetVis() {
+  const visible = localStorage.getItem(PET_RESET_VIS_KEY) !== '0';   // 默认显示
+  document.getElementById('petResetBtn').style.display = visible ? '' : 'none';
+  petResetVisToggle.classList.toggle('on', visible);
+}
+
+petResetVisToggle.addEventListener('click', () => {
+  const visible = localStorage.getItem(PET_RESET_VIS_KEY) !== '0';
+  localStorage.setItem(PET_RESET_VIS_KEY, visible ? '0' : '1');
+  applyPetResetVis();
+});
+
+applyPetResetVis();
 
 // ── GPU 监控（数据来自 server.js 的 /api/gpu，ssh + nvidia-smi）──
 let _gpuCount = -1;
@@ -1771,7 +1791,7 @@ const ALARM_OFF   = 75;          // 回落到 <75% 才解除（滞回，防止�
 const BED = {
   x:     738,                        // 吸附判定锚点（床中心 x）
   range: 150,                         // |年x − 床x| ≤ range 时触发吸附
-  sit:   { x: 715, y: 25, dir: -1 }, // 坐姿坐标
+  sit:   { x: 715, y: 25, dir: -1, scale: 0.8  }, // 坐姿坐标
   sleep: { x: 705, y: 28, dir: -1, scale: 0.8 }, // 躺姿坐标；scale=床上临时缩放（1=原大小，sit 同样支持）
 };
 
@@ -1782,7 +1802,7 @@ const MARKOV  = {
   Relax:    [0.35, 0.35, 0.20, 0.10, 0],
   Move:     [0.35, 0.65, 0.00, 0.00, 0],
   Sit:      [0.35, 0.00, 0.65, 0.00, 0],
-  Sleep:    [0.85, 0.00, 0.00, 0.15, 0],
+  Sleep:    [0.05, 0.00, 0.35, 0.60, 0],
   Interact: [1.00, 0.00, 0.00, 0.00, 0],
 };
 
