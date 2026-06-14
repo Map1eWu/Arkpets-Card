@@ -264,6 +264,8 @@ function fetchMusic() {
 
   const bundle   = info.bundleIdentifier || '';
   const isMusic  = MUSIC_BUNDLES.has(bundle);
+  // 只认音乐 App：视频/直播/浏览器等一律当「未播放」，不显示
+  if (!isMusic) { musicCache = { ok: false }; musicSong = ''; return; }
   const playing  = info.playing === true || info.playbackRate > 0;
   // 进度由前端实时插值：elapsedTime(秒) + (now - timestamp) * rate
   const elapsed  = typeof info.elapsedTime  === 'number' ? info.elapsedTime  : 0;

@@ -1,7 +1,9 @@
 # Arkpets-Card
 
 一块 800×480 的桌面信息卡片：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只会在界面横线之间跳来跳去的明日方舟桌宠「年」。
+
 ![demon](demon_img/demon1.png)
+<img src="demon_img/demon1.png" width="500" /> <img src="demon_img/demon7.png" width="500" />
 
 ## 功能
 
@@ -114,7 +116,7 @@ brew install media-control   # 音乐功能依赖（见下）
 
 1. 在 Ark-Models 的 `models/` 中找到想要的干员，下载整个文件夹，放到本项目根目录（与 `2014_nian_nian#4/` 同级）
 2. 修改 `claude-dashboard.html` 桌宠模块顶部的四个常量，例如：
-
+   
    ```js
    const MODEL_DIR  = '/xxxx_name/';            // 文件夹名；特殊字符需 URL 编码（如 # → %23）
    const SKEL_KEY   = 'build_char_xxxx_name.skel';
@@ -140,3 +142,4 @@ brew install media-control   # 音乐功能依赖（见下）
 ## License
 
 代码部分 MIT；素材与第三方运行时遵循各自原始许可（见上）。
+
