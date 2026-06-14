@@ -8,3 +8,7 @@ usage-data.js
 node_modules/
 debug-screenshot.png
 .DS_Store
+
+test/
+md/
+CLAUDE.md

@@ -73,7 +73,7 @@ body {
   height: 480px;
   pointer-events: none;
   cursor: grab;
-  z-index: 5;
+  z-index: 7;
 }
 
 /* ── Header ── */
@@ -81,6 +81,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 42px;            /* 固定高度：顶栏封面放大也不再撑高顶栏 */
   padding: 10px 20px 9px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -117,6 +118,38 @@ body {
   gap: 10px;
 }
 
+/* 顶栏时间：仅当「时间」栏关闭时显示（紧贴 Claude 右侧） */
+.header-clock {
+  display: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+body.time-pane-off .header-clock { display: inline-block; }
+
+/* 顶栏迷你音乐：仅当「顶栏歌曲」开关 on 且「音乐」栏关闭时显示 */
+.header-song {
+  display: none;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-cover {
+  display: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--track);
+}
+body.header-music-on .header-song,
+body.header-music-on .header-cover { display: inline-block; }
+
 .settings-gear {
   width: 15px;
   height: 15px;
@@ -135,11 +168,12 @@ body {
   right: 0;
   display: none;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 20px;
   padding: 8px 20px;
   background: var(--surface);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 4;
+  z-index: 6;
 }
 
 #settingsBar.open { display: flex; }
@@ -147,6 +181,7 @@ body {
 .settings-label {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .seg {
@@ -175,6 +210,13 @@ body {
 }
 
 .settings-label-gap { margin-left: 10px; }
+
+.settings-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 
 /* 开关 */
 .switch {
@@ -379,6 +421,390 @@ body {
   color: var(--muted);
   font-style: italic;
 }
+
+/* ── Music Pane ── */
+.music-pane {
+  /* ★可调：歌名/歌手与歌词之间那条横线的位置 ★
+     表示「上半区(封面+歌名+歌手)」占整栏内容高度的比例。
+     调大 → 横线下移、封面区更大；调小 → 横线上移、歌词区更大 */
+  --music-split: 80%;
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 14px 14px;
+}
+
+.music-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 上半区：封面 + 歌名 + 歌手；底部的 border 就是那条可调横线 */
+.music-top {
+  height: var(--music-split);
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 封面区：吃掉歌名以上的全部空间，使封面在「上边界 ↔ 歌名」之间垂直居中 */
+.music-cover-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.music-cover-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 140px;        /* 拉宽栏目时封面不再无限放大 */
+  max-height: 100%;        /* 上半区变矮时封面跟着缩，不溢出 */
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--track);
+  flex-shrink: 0;
+}
+
+.music-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.music-cover.loaded { display: block; }
+
+.music-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.music-cover.loaded + .music-cover-placeholder { display: none; }
+
+/* 播放状态小点 */
+.music-playing-dot {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--done);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.music-playing-dot.playing {
+  opacity: 1;
+  animation: music-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes music-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
+}
+
+.music-title {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 6px;         /* 与封面区留点缝 */
+}
+
+.music-artist {
+  width: 100%;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 5px;      /* 紧贴下方横线 */
+}
+
+.music-lyrics {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding-top: 8px;        /* 横线下方歌词留白；横线本身在 .music-top 上 */
+}
+
+.music-lyric-line {
+  width: 100%;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+  transition: color 0.3s;
+}
+
+.music-lyric-line.prev,
+.music-lyric-line.next { color: var(--muted); opacity: 0.6; }
+
+.music-lyric-line.curr {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  opacity: 1;
+}
+
+/* ── Pomodoro Pane ── */
+.pomo-block { display: none; }
+
+.pomo-pane {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 14px 14px;
+}
+
+.pomo-pane-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+/* 运行时：圆环居中，controls 钉底 */
+.pomo-pane-inner.running { justify-content: center; gap: 6px; }
+.pomo-pane-inner.running .pomo-modes,
+.pomo-pane-inner.running .pomo-title,
+.pomo-pane-inner.running .pomo-dots { display: none; }
+.pomo-pane-inner.running .pomo-controls {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pomo-title {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* 模式选择区 */
+.pomo-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.pomo-seg {
+  display: flex;
+  background: var(--track);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.pomo-phase {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.pomo-phase.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pomo-extra-row {
+  display: flex;
+  gap: 4px;
+}
+
+.pomo-extra-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pomo-extra-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  font-weight: 600;
+}
+
+.pomo-custom-form {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.pomo-custom-form.visible { display: flex; }
+
+.pomo-custom-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.pomo-num-input {
+  width: 36px;
+  background: var(--track);
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  text-align: center;
+  padding: 3px 2px;
+  outline: none;
+}
+
+.pomo-num-input::-webkit-inner-spin-button,
+.pomo-num-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.pomo-colon { font-size: 14px; color: var(--muted); }
+
+.pomo-label-input {
+  background: var(--track);
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text);
+  padding: 3px 6px;
+  outline: none;
+  width: 100%;
+}
+
+.pomo-label-input::placeholder { color: var(--muted); }
+
+/* 圆环 */
+.pomo-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pomo-ring-svg {
+  width: 108px;
+  height: 108px;
+  transition: width 0.3s, height 0.3s;
+}
+
+.pomo-pane-inner.running .pomo-ring-svg { width: 126px; height: 126px; }
+
+.pomo-ring-track { stroke: var(--track); stroke-width: 7; }
+
+.pomo-ring-prog {
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 314.16;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+  transition: stroke-dashoffset 0.8s linear;
+}
+
+.pomo-ring-prog.stopwatch { stroke: var(--done); }
+.pomo-ring-prog.done      { stroke: var(--done); }
+
+.pomo-timer {
+  position: absolute;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transition: font-size 0.3s;
+}
+
+.pomo-pane-inner.running .pomo-timer { font-size: 24px; }
+.pomo-timer.running   { color: var(--accent); }
+.pomo-timer.done      { color: var(--done); }
+.pomo-timer.stopwatch { color: var(--done); }
+
+.pomo-run-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  min-height: 14px;
+}
+
+.pomo-controls { display: flex; gap: 8px; }
+
+.pomo-btn {
+  border: none;
+  background: var(--track);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.pomo-btn:hover { background: var(--border); }
+.pomo-btn.pomo-reset { font-size: 16px; }
+
+.pomo-dots { display: flex; gap: 5px; min-height: 8px; }
+
+.pomo-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--track);
+}
+
+.pomo-dot.filled { background: var(--accent); }
 
 /* ── Middle Panel (GPU) ── */
 .gpu {
@@ -837,8 +1263,11 @@ body {
   <div class="logo">
     <img src="img/claude-color.svg" width="22" height="22" alt="Claude">
     <span class="logo-text">Claude</span>
+    <span class="header-clock" id="headerClock"></span><!-- 时间栏关闭时显示 -->
   </div>
   <div class="header-right">
+    <span class="header-song" id="headerSong"></span><!-- 顶栏歌曲开关 on 时显示 -->
+    <img class="header-cover" id="headerCover" alt=""><!-- 顶栏歌曲开关 on 时显示 -->
     <div class="header-date" id="headerDate"></div>
     <img src="img/setting.svg" class="mono-ico settings-gear" id="settingsGear" alt="设置">
   </div>
@@ -846,23 +1275,41 @@ body {
 
 <!-- 设置栏（点击右上角齿轮展开） -->
 <div id="settingsBar">
-  <span class="settings-label">主题</span>
-  <div class="seg" id="themeSeg">
-    <button data-mode="light">浅色</button>
-    <button data-mode="dark">深色</button>
-    <button data-mode="auto">跟随时间</button>
+  <div class="settings-group">
+    <span class="settings-label">主题</span>
+    <div class="seg" id="themeSeg">
+      <button data-mode="light">浅色</button>
+      <button data-mode="dark">深色</button>
+      <button data-mode="auto">跟随时间</button>
+    </div>
   </div>
-  <span class="settings-label settings-label-gap">栏目</span>
-  <div class="seg" id="paneSeg">
-    <button data-pane="paneTime">时间</button>
-    <button data-pane="paneGpu">GPU 1</button>
-    <button data-pane="paneGpu2">GPU 2</button>
-    <button data-pane="paneTodo">待办</button>
+  <div class="settings-group">
+    <span class="settings-label">栏目</span>
+    <div class="seg" id="paneSeg">
+      <button data-pane="paneTime">时间</button>
+      <button data-pane="paneGpu">GPU 1</button>
+      <button data-pane="paneGpu2">GPU 2</button>
+      <button data-pane="paneMusic">音乐</button>
+      <button data-pane="panePomo">番茄</button>
+      <button data-pane="paneTodo">待办</button>
+    </div>
   </div>
-  <span class="settings-label settings-label-gap">开机自启</span>
-  <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
-  <span class="settings-label settings-label-gap">复位键</span>
-  <button class="switch" id="petResetVisToggle" title="显示/隐藏右下角的桌宠复位按钮"></button>
+  <div class="settings-group">
+    <span class="settings-label">顶栏歌曲</span>
+    <button class="switch" id="headerMusicToggle" title="在顶栏右侧显示封面与歌名（仅「音乐」栏关闭时可用）"></button>
+  </div>
+  <div class="settings-group">
+    <span class="settings-label">开机自启</span>
+    <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
+  </div>
+  <div class="settings-group">
+    <span class="settings-label">复位键</span>
+    <button class="switch" id="petResetVisToggle" title="显示/隐藏右下角的桌宠复位按钮"></button>
+  </div>
+  <div class="settings-group">
+    <span class="settings-label">Sleep</span>
+    <button class="switch" id="sleepToggle" title="Ta该睡觉啦～"></button>
+  </div>
 </div>
 
 <!-- Main -->
@@ -914,6 +1361,99 @@ body {
     </div>
     <div class="gpu-list" id="gpuList2">
       <div class="gpu-empty">连接中…</div>
+    </div>
+  </div>
+
+  <!-- Music: 音乐播放 -->
+  <div class="music-pane pane" id="paneMusic">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
+    <div class="music-inner">
+      <!-- 上半区：封面在「上边界↔歌名」间居中；歌名歌手紧贴底部横线 -->
+      <div class="music-top">
+        <div class="music-cover-area">
+          <div class="music-cover-wrap">
+            <img class="music-cover" id="musicCover" src="" alt="">
+            <div class="music-cover-placeholder" id="musicCoverPlaceholder">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                <circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                <circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+                <circle cx="18" cy="18" r="2" fill="currentColor" opacity="0.6"/>
+              </svg>
+            </div>
+            <div class="music-playing-dot" id="musicPlayDot"></div>
+          </div>
+        </div>
+        <div class="music-title" id="musicTitle">未播放</div>
+        <div class="music-artist" id="musicArtist">—</div>
+      </div>
+      <div class="music-lyrics" id="musicLyrics">
+        <div class="music-lyric-line prev" id="lyricPrev"></div>
+        <div class="music-lyric-line curr" id="lyricCurr"></div>
+        <div class="music-lyric-line next" id="lyricNext"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pomo: 番茄钟 -->
+  <div class="pomo-pane pane" id="panePomo">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
+    <div class="pomo-pane-inner" id="pomoInner">
+
+      <!-- 标题（运行时隐藏） -->
+      <div class="pomo-title" id="pomoTitle">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <circle cx="6.5" cy="6.5" r="5.5" stroke="#8A7D72" stroke-width="1.3"/>
+          <polyline points="6.5,3.5 6.5,6.5 8.5,8.5" stroke="#8A7D72" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        番茄钟
+      </div>
+
+      <!-- 模式选择区（运行时整体隐藏） -->
+      <div class="pomo-modes" id="pomoModes">
+        <!-- 番茄阶段 -->
+        <div class="pomo-seg" id="pomoSeg">
+          <button class="pomo-phase active" data-phase="focus">专注</button>
+          <button class="pomo-phase" data-phase="short">短休</button>
+          <button class="pomo-phase" data-phase="long">长休</button>
+        </div>
+        <!-- 扩展模式 -->
+        <div class="pomo-extra-row">
+          <button class="pomo-extra-btn" id="pomoCustomBtn">自定义</button>
+          <button class="pomo-extra-btn" id="pomoStopwatchBtn">秒表</button>
+        </div>
+        <!-- 自定义表单（仅自定义模式可见） -->
+        <div class="pomo-custom-form" id="pomoCustomForm">
+          <div class="pomo-custom-time">
+            <input class="pomo-num-input" id="pomoCustomMin" type="number" min="0" max="99" value="25" placeholder="分">
+            <span class="pomo-colon">:</span>
+            <input class="pomo-num-input" id="pomoCustomSec" type="number" min="0" max="59" value="0" placeholder="秒">
+          </div>
+          <input class="pomo-label-input" id="pomoLabelInput" type="text" maxlength="20" placeholder="备注（可选）">
+        </div>
+      </div>
+
+      <!-- 圆环 + 计时器 -->
+      <div class="pomo-ring-wrap" id="pomoRingWrap">
+        <svg class="pomo-ring-svg" viewBox="0 0 120 120" fill="none">
+          <circle class="pomo-ring-track" cx="60" cy="60" r="50"/>
+          <circle class="pomo-ring-prog" id="pomoRingProg" cx="60" cy="60" r="50"/>
+        </svg>
+        <div class="pomo-timer" id="pomoTimer">25:00</div>
+      </div>
+
+      <!-- 运行时备注（自定义模式） -->
+      <div class="pomo-run-label" id="pomoRunLabel"></div>
+
+      <!-- 控制按钮 -->
+      <div class="pomo-controls" id="pomoControls">
+        <button class="pomo-btn" id="pomoStart">▶</button>
+        <button class="pomo-btn pomo-reset" id="pomoReset">↺</button>
+      </div>
+
+      <!-- 番茄计数点 -->
+      <div class="pomo-dots" id="pomoDots"></div>
     </div>
   </div>
 
@@ -1125,6 +1665,326 @@ petResetVisToggle.addEventListener('click', () => {
 });
 
 applyPetResetVis();
+// -- Sleep 模式开关：同步 UI，并通知桌宠进入/退出睡觉状态 ───────────────────────────────
+const SLEEP_KEY_ = 'claude-dash-sleep-mode';
+const sleepToggle = document.getElementById('sleepToggle');
+
+function applySleepMode() {
+  const sleep = localStorage.getItem(SLEEP_KEY_) === '1';
+  sleepToggle.classList.toggle('on', sleep);
+  document.body.classList.toggle('sleep-mode', sleep);
+  window.petSetSleepMode?.(sleep);
+}
+sleepToggle.addEventListener('click', () => {
+  const sleep = localStorage.getItem(SLEEP_KEY_) === '1';
+  localStorage.setItem(SLEEP_KEY_, sleep ? '0' : '1');
+  applySleepMode();
+});
+applySleepMode();
+
+// ── 番茄钟 ────────────────────────────────────────────────────────────────
+{
+  const CIRC     = 314.16;
+  const MAX_DOTS = 4;
+  const PHASES   = { focus: 25*60, short: 5*60, long: 15*60 };
+  // 秒表每转完 1h 循环一种颜色
+  const SW_COLORS = ['var(--done)', 'var(--accent)', '#7B8EC8', '#BE8EC8'];
+
+  let mode      = 'focus';
+  let total     = PHASES.focus;
+  let remain    = total;
+  let running   = false;   // ticker 是否在跑
+  let started   = false;   // 是否已经开始过（暂停后 UI 不回退）
+  let ticker    = null;
+  let finished  = 0;
+  let customLbl = '';
+  let swHour    = -1;      // 秒表当前小时轮次（颜色循环用）
+
+  const innerEl     = document.getElementById('pomoInner');
+  const timerEl     = document.getElementById('pomoTimer');
+  const startBtn    = document.getElementById('pomoStart');
+  const resetBtn    = document.getElementById('pomoReset');
+  const dotsEl      = document.getElementById('pomoDots');
+  const ringProg    = document.getElementById('pomoRingProg');
+  const runLabelEl  = document.getElementById('pomoRunLabel');
+  const customForm  = document.getElementById('pomoCustomForm');
+  const customMinEl = document.getElementById('pomoCustomMin');
+  const customSecEl = document.getElementById('pomoCustomSec');
+  const labelInput  = document.getElementById('pomoLabelInput');
+  const customBtn   = document.getElementById('pomoCustomBtn');
+  const swBtn       = document.getElementById('pomoStopwatchBtn');
+
+  // ── 工具 ──
+  function fmt(s) {
+    const h  = Math.floor(s / 3600);
+    const m  = Math.floor((s % 3600) / 60);
+    const sc = s % 60;
+    if (mode === 'stopwatch' && h > 0)
+      return `${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+    return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+  }
+
+  function setRingOffset(ratio, instant) {
+    const offset = CIRC * (1 - Math.max(0, Math.min(1, ratio)));
+    if (instant) {
+      ringProg.style.transition = 'none';
+      void ringProg.getBoundingClientRect();   // force reflow
+      ringProg.style.strokeDashoffset = offset;
+      requestAnimationFrame(() => { ringProg.style.transition = ''; });
+    } else {
+      ringProg.style.strokeDashoffset = offset;
+    }
+  }
+
+  function renderDots() {
+    dotsEl.innerHTML = Array.from({length: MAX_DOTS}, (_, i) =>
+      `<div class="pomo-dot${i < finished ? ' filled' : ''}"></div>`
+    ).join('');
+  }
+
+  function renderTimer() {
+    timerEl.textContent = fmt(remain);
+
+    // 计时器颜色类
+    let cls = 'pomo-timer';
+    if (mode === 'stopwatch')               cls += ' stopwatch';
+    else if (started)                       cls += ' running';   // 暂停时也保持橙色
+    else if (remain === 0)                  cls += ' done';
+    timerEl.className = cls;
+
+    // 环进度 & 颜色
+    ringProg.classList.toggle('done', mode !== 'stopwatch' && remain === 0 && !started);
+
+    if (mode === 'stopwatch') {
+      const curHour = Math.floor(remain / 3600);
+      if (curHour !== swHour) {
+        // 整点换色 + 瞬时跳转（避免动画回绕）
+        swHour = curHour;
+        ringProg.style.stroke = SW_COLORS[swHour % SW_COLORS.length];
+        setRingOffset((remain % 3600) / 3600, true);
+      } else {
+        setRingOffset((remain % 3600) / 3600, false);
+      }
+    } else {
+      ringProg.style.stroke = '';   // 交回 CSS 控制
+      setRingOffset(total > 0 ? remain / total : 1, false);
+    }
+
+    startBtn.textContent = running ? '⏸' : (remain === 0 && mode !== 'stopwatch' ? '↩' : '▶');
+  }
+
+  // UI 展开/收起：只由 started 决定，暂停不影响
+  function applyRunningUI() {
+    innerEl.classList.toggle('running', started);
+    runLabelEl.textContent = (started && mode === 'custom' && customLbl) ? customLbl : '';
+  }
+
+  // ── 模式切换（未开始时才允许）──
+  function setMode(m) {
+    mode    = m;
+    running = false;
+    started = false;
+    swHour  = -1;
+    clearInterval(ticker); ticker = null;
+    ringProg.style.stroke = '';
+
+    document.querySelectorAll('.pomo-phase').forEach(b =>
+      b.classList.toggle('active', b.dataset.phase === m));
+    customBtn.classList.toggle('active', m === 'custom');
+    swBtn.classList.toggle('active',     m === 'stopwatch');
+    customForm.classList.toggle('visible', m === 'custom');
+    dotsEl.style.display = ['focus','short','long'].includes(m) ? '' : 'none';
+
+    if (m === 'stopwatch')     { total = Infinity; remain = 0; }
+    else if (m === 'custom')   {
+      const min = parseInt(customMinEl.value) || 0;
+      const sec = parseInt(customSecEl.value) || 0;
+      total = remain = min*60 + sec || 25*60;
+    } else {
+      total = remain = PHASES[m];
+    }
+
+    applyRunningUI();
+    renderTimer();
+  }
+
+  function onDone() {
+    running = false;
+    started = false;
+    clearInterval(ticker); ticker = null;
+    remain = 0;
+    applyRunningUI();   // 完成后 UI 回到闲置
+    renderTimer();
+    window.petPlay?.('Interact');
+    if (mode === 'focus') { finished = Math.min(finished + 1, MAX_DOTS); renderDots(); }
+  }
+
+  // ── 事件 ──
+  startBtn.addEventListener('click', () => {
+    if (remain === 0 && mode !== 'stopwatch') { setMode(mode); return; }   // ↩ 重置
+
+    if (running) {
+      // 暂停：只停 ticker，UI 不动
+      running = false;
+      clearInterval(ticker); ticker = null;
+      renderTimer();
+    } else {
+      // 首次开始（不是 resume）
+      if (!started) {
+        if (mode === 'custom') {
+          const min = parseInt(customMinEl.value) || 0;
+          const sec = parseInt(customSecEl.value) || 0;
+          total = remain = min*60 + sec || 25*60;
+          customLbl = labelInput.value.trim();
+        }
+        started = true;
+        applyRunningUI();
+      }
+      // 开始 / 恢复 ticker
+      running = true;
+      ticker = setInterval(() => {
+        if (mode === 'stopwatch') remain++;
+        else { remain--; if (remain <= 0) { onDone(); return; } }
+        renderTimer();
+      }, 1000);
+      renderTimer();
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    running = false;
+    started = false;
+    swHour  = -1;
+    clearInterval(ticker); ticker = null;
+    ringProg.style.stroke = '';
+    remain = (mode === 'stopwatch') ? 0 : total;
+    if (mode === 'focus') { finished = 0; renderDots(); }
+    applyRunningUI();
+    renderTimer();
+  });
+
+  document.querySelectorAll('.pomo-phase').forEach(b =>
+    b.addEventListener('click', () => { if (!started) setMode(b.dataset.phase); }));
+  customBtn.addEventListener('click', () => { if (!started) setMode('custom'); });
+  swBtn.addEventListener('click',     () => { if (!started) setMode('stopwatch'); });
+
+  renderDots();
+  setMode('focus');
+}
+
+// ── 音乐播放（数据来自 server.js 的 /api/music，media-control）──
+{
+  const coverEl       = document.getElementById('musicCover');
+  const placeholderEl = document.getElementById('musicCoverPlaceholder');
+  const playDotEl     = document.getElementById('musicPlayDot');
+  const titleEl       = document.getElementById('musicTitle');
+  const artistEl      = document.getElementById('musicArtist');
+  const lyricPrev     = document.getElementById('lyricPrev');
+  const lyricCurr     = document.getElementById('lyricCurr');
+  const lyricNext     = document.getElementById('lyricNext');
+  const headerSong    = document.getElementById('headerSong');
+  const headerCover   = document.getElementById('headerCover');
+
+  let lastArtwork = '';
+
+  // 根据 position（秒）从 lyrics 数组里找当前行索引
+  function currIdx(lyrics, pos) {
+    if (!lyrics || lyrics.length === 0) return -1;
+    let idx = 0;
+    for (let i = 0; i < lyrics.length; i++) {
+      if (lyrics[i].time <= pos) idx = i;
+      else break;
+    }
+    return idx;
+  }
+
+  function renderLyrics(lyrics, pos) {
+    if (!lyrics || lyrics.length === 0) {
+      lyricPrev.textContent = lyricCurr.textContent = lyricNext.textContent = '';
+      return;
+    }
+    const i = currIdx(lyrics, pos);
+    lyricPrev.textContent = i > 0            ? lyrics[i - 1].text : '';
+    lyricCurr.textContent = i >= 0           ? lyrics[i].text     : '';
+    lyricNext.textContent = i < lyrics.length - 1 ? lyrics[i + 1].text : '';
+  }
+
+  // 当前快照（含 elapsed/timestamp/rate），ticker 用它实时插值出播放进度
+  let snapshot = null;
+
+  // 实时进度（秒）：elapsed + 自服务端读到这条信息以来流逝的时间 × 速率。
+  // 暂停时 rate=0 自然冻结；拖进度条后下次轮询带来新的 elapsed/timestamp 会自动校正
+  function livePos(d) {
+    if (!d) return 0;
+    const drift = (Date.now() - (d.timestamp || Date.now())) / 1000;
+    return Math.max(0, (d.elapsed || 0) + drift * (d.rate || 0));
+  }
+
+  function renderMusic(d) {
+    snapshot = d;
+    titleEl.textContent  = d.title  || '未播放';
+    artistEl.textContent = d.artist || '—';
+    playDotEl.classList.toggle('playing', !!d.playing);
+    if (headerSong) headerSong.textContent = d.title || '';
+
+    // 封面：URL 变化才更新（切歌、或异步换成网易云高清图时）
+    if (d.artwork !== lastArtwork) {
+      lastArtwork = d.artwork;
+      coverEl.classList.remove('loaded');   // 换图期间先隐藏，加载完再显示
+      if (d.artwork) {
+        coverEl.src = d.artwork;
+        coverEl.onload  = () => coverEl.classList.add('loaded');
+        coverEl.onerror = () => coverEl.classList.remove('loaded');
+      } else {
+        coverEl.src = '';
+      }
+      // 顶栏迷你封面同步
+      if (headerCover) {
+        if (d.artwork) headerCover.src = d.artwork;
+        else headerCover.removeAttribute('src');
+      }
+    }
+
+    renderLyrics(d.lyrics, livePos(d));
+  }
+
+  function renderNoMusic() {
+    snapshot = null;
+    titleEl.textContent  = '未播放';
+    artistEl.textContent = '—';
+    playDotEl.classList.remove('playing');
+    coverEl.classList.remove('loaded');
+    coverEl.src = '';
+    if (headerSong)  headerSong.textContent = '';
+    if (headerCover) headerCover.removeAttribute('src');
+    lyricPrev.textContent = lyricCurr.textContent = lyricNext.textContent = '';
+    lastArtwork = '';
+  }
+
+  async function pollMusic() {
+    // 音乐栏可见，或顶栏歌曲激活时才轮询
+    const paneVisible = document.getElementById('paneMusic')?.style.display !== 'none';
+    const headerOn    = document.body.classList.contains('header-music-on');
+    if (!paneVisible && !headerOn) return;
+    try {
+      const r = await fetch('/api/music');
+      const d = await r.json();
+      if (d.ok) renderMusic(d);
+      else renderNoMusic();
+    } catch {}
+  }
+  window.pollMusicNow = pollMusic;
+
+  // 歌词高亮：每 250ms 用插值进度刷新，两次轮询之间也能丝滑走字
+  setInterval(() => {
+    if (snapshot && snapshot.playing && snapshot.lyrics && snapshot.lyrics.length) {
+      renderLyrics(snapshot.lyrics, livePos(snapshot));
+    }
+  }, 250);
+
+  pollMusic();
+  setInterval(pollMusic, 3000);
+}
 
 // ── GPU 监控（数据来自 server.js 的 /api/gpu，ssh + nvidia-smi）──
 let _gpuCount = -1;
@@ -1205,7 +2065,7 @@ setInterval(fetchGpu, 5000);
 
 // ── 栏间分隔线系统：每两栏之间一条，拖动调整相邻的固定宽度栏 ──
 const PANE_W_KEY   = 'claude-dash-pane-widths';
-const PANE_DEFAULT = { paneTime: 210, paneGpu: 200, paneGpu2: 200 };   // 固定宽度栏的默认宽（弹性栏不在此表）
+const PANE_DEFAULT = { paneTime: 210, paneGpu: 200, paneGpu2: 200, paneMusic: 160, panePomo: 160 };   // 固定宽度栏的默认宽（弹性栏不在此表）
 const mainBox = document.querySelector('.main');
 const panes   = () => [...mainBox.querySelectorAll(':scope > .pane')];
 const isFixedPane = p => p && getComputedStyle(p).flexGrow === '0';
@@ -1320,6 +2180,31 @@ try { hiddenPanes = new Set(JSON.parse(localStorage.getItem(PANE_HIDE_KEY)) || [
 // 栏不可见 = 用户隐藏 || 第二 GPU 栏在未配置第二台服务器时强制隐藏
 const isPaneOff = id => hiddenPanes.has(id) || (id === 'paneGpu2' && !gpu2Exists);
 
+// ── 顶栏小组件：时间栏关闭→顶栏显时间；顶栏歌曲开关（仅音乐栏关闭时可用）──
+const HEADER_MUSIC_KEY = 'claude-dash-header-music';
+const headerMusicToggle = document.getElementById('headerMusicToggle');
+
+function syncHeaderWidgets() {
+  // 时间栏关闭 → 顶栏 Claude 右侧显示时间
+  document.body.classList.toggle('time-pane-off', isPaneOff('paneTime'));
+
+  // 音乐栏开着时开关变灰不可点；关闭时才能 on/off
+  const musicOff = isPaneOff('paneMusic');
+  const on = localStorage.getItem(HEADER_MUSIC_KEY) === '1';
+  headerMusicToggle.classList.toggle('disabled', !musicOff);
+  headerMusicToggle.classList.toggle('on', on);
+  // 顶栏歌曲：开关 on 且音乐栏关闭时才显示（音乐栏开着不重复显示）
+  document.body.classList.toggle('header-music-on', on && musicOff);
+  if (on && musicOff) window.pollMusicNow?.();   // 立即拉一次，免得等下一轮
+}
+
+headerMusicToggle.addEventListener('click', () => {
+  if (headerMusicToggle.classList.contains('disabled')) return;
+  const on = localStorage.getItem(HEADER_MUSIC_KEY) === '1';
+  localStorage.setItem(HEADER_MUSIC_KEY, on ? '0' : '1');
+  syncHeaderWidgets();
+});
+
 function applyPaneVisibility() {
   const all = panes();
   all.forEach(p => {
@@ -1339,6 +2224,7 @@ function applyPaneVisibility() {
   });
   localStorage.setItem(PANE_HIDE_KEY, JSON.stringify([...hiddenPanes]));
   syncDividers();
+  syncHeaderWidgets();
   window.petCheckFloor?.();
 }
 
@@ -1438,6 +2324,8 @@ function updateClock() {
   const h = pad(now.getHours());
   const m = pad(now.getMinutes());
   document.getElementById('clock').textContent = `${h}:${m}`;
+  const hc = document.getElementById('headerClock');
+  if (hc) hc.textContent = `${h}:${m}`;
 
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -1771,20 +2659,21 @@ const PNG_KEY    = 'build_char_2014_nian_nian#4.png';
 // ── 行为参数 ───────────────────────────────────────────────
 const CARD_W      = 800;
 const CARD_H      = 480;
-const FLOOR_Y     = 0;           // 距卡片底部的地面高度（px），与 footer 对齐
+const FLOOR_Y     = 0;            // 距卡片底部的地面高度（px），与 footer 对齐
 const INIT_X      = 675;          // 初始 x 位置（px，0=左 800=右）
 const WALK_SPD    = 35;           // px/s
 const X_MIN       = 50;
 const X_MAX       = 750;
 const SCALE       = 0.3;
-const JUMP_RANGE  = 65;         // Sit 时向上/下寻找横线的最大距离（px）
-const SIT_MIN_H   = 30;         // currentFloorY 低于此值时禁止 Sit（空间不够）
-const GRAVITY     = 1200;       // 拖拽释放后的下落加速度（px/s²）
-const CLICK_DIST  = 4;          // 按下后移动距离小于此视为点击（px）
+const JUMP_RANGE  = 50;           // Sit 时向上/下寻找横线的最大距离（px）
+const SIT_MIN_H   = 30;           // currentFloorY 低于此值时禁止 Sit（空间不够）
+const GRAVITY     = 1200;         // 拖拽释放后的下落加速度（px/s²）
+const CLICK_DIST  = 4;            // 按下后移动距离小于此视为点击（px）
 const MAX_FLOOR_Y = CARD_H - 150; // 可落/可坐横线的最大高度，太高会越出卡片上界
-const ALARM_ON    = 80;          // 5 小时用量 ≥80% → 年去用量条上值班
-const ALARM_SLEEP = 95;          // ≥95% → 值班姿势改为 Sleep（躺平）
-const ALARM_OFF   = 75;          // 回落到 <75% 才解除（滞回，防止阈值附近来回横跳）
+const ALARM_ON    = 80;           // 5 小时用量 ≥80% → 年去用量条上值班
+const ALARM_SLEEP = 95;           // ≥95% → 值班姿势改为 Sleep（躺平）
+const ALARM_OFF   = 75;           // 回落到 <75% 才解除（滞回，防止阈值附近来回横跳）
+const SLEEP_KEY   = 'claude-dash-sleep-mode';
 
 // 床（右下角装饰图）：年在地面、x 进入吸附范围时，坐/躺直接吸附到床上
 // 以下坐标/范围自行调整；y 为床面高度（floorY），dir 1=朝右 -1=朝左（不填保持当前朝向）
@@ -1975,6 +2864,55 @@ async function initPet() {
     console.log(`年 上床（${kind}）x=${pose.x} y=${pose.y} dir=${dir === 1 ? '右' : '左'}`);
     return true;
   }
+
+  function placeOnBed(kind) {
+    const pose = BED && BED[kind];
+    if (!pose) return false;
+    skeleton.x    = pose.x * PR;
+    currentFloorY = pose.y;
+    skeleton.y    = pose.y * PR;
+    if (pose.dir) dir = pose.dir;
+    petScale = pose.scale || 1;
+    onBed = true;
+    return true;
+  }
+
+  function leaveBed() {
+    if (!onBed) return;
+    onBed = false;
+    petScale = 1;
+    currentFloorY = FLOOR_Y;
+    skeleton.y = FLOOR_Y * PR;
+  }
+
+  window.petSetSleepMode = sleep => {
+    if (sleep) {
+      task = null;
+      if (alarm.state !== 'off') {
+        alarm.dismissed = alarm.level;
+        alarm.state = 'off';
+      }
+      mode = 'sleep';
+      fallVy = 0;
+      dragStart = null;
+      placeOnBed('sleep');
+      const want = has('Sleep') ? 'Sleep' : 'Relax';
+      if (curAnim !== want) {
+        state.setAnimation(0, want, true);
+        curAnim = want;
+      }
+      return;
+    }
+
+    if (mode === 'sleep') {
+      mode = 'auto';
+      leaveBed();
+      if (has('Relax')) {
+        state.setAnimation(0, 'Relax', true);
+        curAnim = 'Relax';
+      }
+    }
+  };
 
   // 跳到目标线：更新楼层与走动边界，并把 x 夹进新边界
   function jumpTo(target) {
@@ -2169,6 +3107,7 @@ async function initPet() {
 
   // renderUsage 每次拿到新数据时调用
   window.petUsageAlarm = (pct, stale) => {
+    if (localStorage.getItem(SLEEP_KEY) === '1' || mode === 'sleep') return;
     if (stale || pct == null) return;
     const prev = lastPct5h;
     lastPct5h = pct;
@@ -2230,6 +3169,7 @@ async function initPet() {
 
   canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    if (mode === 'sleep') return;
     dragStart = { mx: e.clientX, my: e.clientY, sx: skeleton.x, sy: skeleton.y, moved: false };
     e.preventDefault();
   });
@@ -2391,9 +3331,10 @@ async function initPet() {
   // 恢复上次位置（F5 后），并校验该楼层的线是否仍然存在
   restorePetState();
   window.petCheckFloor();
+  window.petSetSleepMode(localStorage.getItem(SLEEP_KEY) === '1');
 
   // 启动时如果额度已经告急，立刻上岗
-  if (window.USAGE_DATA) {
+  if (window.USAGE_DATA && localStorage.getItem(SLEEP_KEY) !== '1') {
     window.petUsageAlarm(window.USAGE_DATA.pct5h ?? null, !!window.USAGE_DATA.isStale);
   }
 
