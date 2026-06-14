@@ -2,7 +2,13 @@
 
 一块 800×480 的桌面信息卡片：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只会在界面横线之间跳来跳去的明日方舟桌宠「年」。
 
-<img src="demon_img/demon1.png" width="400" /> <img src="demon_img/demon7.png" width="400" />
+
+<table width="100%">
+  <tr>
+    <td><img src="demon_img/demon1.png" width="100%" />
+    <td><img src="demon_img/demon7.png" width="100%" />
+  <tr>
+</table>
 
 ## 功能
 
