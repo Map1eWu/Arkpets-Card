@@ -569,6 +569,29 @@ body.header-music-on .header-cover { display: inline-block; }
   opacity: 1;
 }
 
+/* 播放/暂停按钮（音乐栏右下角，默认隐藏，有歌时由 JS 显示）*/
+.music-toggle {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--track);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+}
+.music-toggle.show { display: flex; }
+.music-toggle:hover { opacity: 1; background: var(--card); }
+
 /* ── Pomodoro Pane ── */
 .pomo-block { display: none; }
 
@@ -915,6 +938,33 @@ body.header-music-on .header-cover { display: inline-block; }
   flex-direction: column;
   overflow: hidden;
 }
+
+/* ── Text Pane（记事本）── */
+.text-pane {
+  width: 190px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.text-area {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 10px 16px 14px;
+  scrollbar-width: none;
+}
+
+.text-area::-webkit-scrollbar { display: none; }
+.text-area::placeholder { color: var(--muted); }
 
 .todo-header {
   display: flex;
@@ -1291,6 +1341,7 @@ body.header-music-on .header-cover { display: inline-block; }
       <button data-pane="paneGpu2">GPU 2</button>
       <button data-pane="paneMusic">音乐</button>
       <button data-pane="panePomo">番茄</button>
+      <button data-pane="paneText">文本</button>
       <button data-pane="paneTodo">待办</button>
     </div>
   </div>
@@ -1309,6 +1360,10 @@ body.header-music-on .header-cover { display: inline-block; }
   <div class="settings-group">
     <span class="settings-label">Sleep</span>
     <button class="switch" id="sleepToggle" title="Ta该睡觉啦～"></button>
+  </div>
+  <div class="settings-group">
+    <span class="settings-label">勿扰</span>
+    <button class="switch" id="dndToggle" title="年走回床位附近休息，不再到处跑"></button>
   </div>
 </div>
 
@@ -1393,6 +1448,8 @@ body.header-music-on .header-cover { display: inline-block; }
         <div class="music-lyric-line next" id="lyricNext"></div>
       </div>
     </div>
+    <!-- 播放/暂停（右下角，有歌时显示）-->
+    <button class="music-toggle" id="musicToggleBtn" title="播放/暂停"></button>
   </div>
 
   <!-- Pomo: 番茄钟 -->
@@ -1458,6 +1515,23 @@ body.header-music-on .header-cover { display: inline-block; }
   </div>
 
   <!-- Right: Todo -->
+  <!-- Text: 记事本 -->
+  <div class="text-pane pane" id="paneText">
+    <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
+    <div class="pane-grip" title="拖动调换栏位">☰</div>
+    <div class="todo-header">
+      <div class="todo-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 1.6h5.1L11 4v8a.8.8 0 0 1-.8.8H3a.8.8 0 0 1-.8-.8V2.4A.8.8 0 0 1 3 1.6Z" stroke="#8A7D72" stroke-width="1.2" stroke-linejoin="round"/>
+          <line x1="4.4" y1="6.3" x2="9" y2="6.3" stroke="#8A7D72" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="4.4" y1="8.5" x2="9" y2="8.5" stroke="#8A7D72" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        文本
+      </div>
+    </div>
+    <textarea class="text-area" id="textArea" placeholder="随手记…自动保存" spellcheck="false"></textarea>
+  </div>
+
   <div class="right pane" id="paneTodo">
     <div class="pane-close" title="隐藏此栏（设置里可恢复）">×</div>
     <div class="pane-grip" title="拖动调换栏位">☰</div>
@@ -1669,18 +1743,48 @@ applyPetResetVis();
 const SLEEP_KEY_ = 'claude-dash-sleep-mode';
 const sleepToggle = document.getElementById('sleepToggle');
 
-function applySleepMode() {
+function applySleepMode(animate = false) {
   const sleep = localStorage.getItem(SLEEP_KEY_) === '1';
   sleepToggle.classList.toggle('on', sleep);
   document.body.classList.toggle('sleep-mode', sleep);
-  window.petSetSleepMode?.(sleep);
+  window.petSetSleepMode?.(sleep, animate);
 }
 sleepToggle.addEventListener('click', () => {
   const sleep = localStorage.getItem(SLEEP_KEY_) === '1';
   localStorage.setItem(SLEEP_KEY_, sleep ? '0' : '1');
-  applySleepMode();
+  applySleepMode(true);   // 用户切换 → 走过去，不瞬移
 });
 applySleepMode();
+
+// -- 勿扰模式开关：年走回床位附近休息，不再到处跑 ───────────────
+const DND_KEY = 'claude-dash-dnd';
+const dndToggle = document.getElementById('dndToggle');
+
+function applyDnd(animate = false) {
+  const on = localStorage.getItem(DND_KEY) === '1';
+  dndToggle.classList.toggle('on', on);
+  window.petSetDnd?.(on, animate);
+}
+dndToggle.addEventListener('click', () => {
+  const on = localStorage.getItem(DND_KEY) === '1';
+  localStorage.setItem(DND_KEY, on ? '0' : '1');
+  applyDnd(true);   // 用户切换 → 走过去
+});
+applyDnd();
+
+// ── 文本记事本：内容存 localStorage，输入即自动保存（防抖）──────────────
+{
+  const NOTE_KEY = 'claude-dash-note';
+  const ta = document.getElementById('textArea');
+  if (ta) {
+    ta.value = localStorage.getItem(NOTE_KEY) || '';
+    let t;
+    ta.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => localStorage.setItem(NOTE_KEY, ta.value), 300);
+    });
+  }
+}
 
 // ── 番茄钟 ────────────────────────────────────────────────────────────────
 {
@@ -1884,8 +1988,22 @@ applySleepMode();
   const lyricNext     = document.getElementById('lyricNext');
   const headerSong    = document.getElementById('headerSong');
   const headerCover   = document.getElementById('headerCover');
+  const toggleBtn     = document.getElementById('musicToggleBtn');
 
   let lastArtwork = '';
+
+  // 自绘图标：三角(播放)在圆内光学居中；双竖条(暂停)
+  const ICON_PLAY  = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M5 3.2 L13 8 L5 12.8 Z" fill="currentColor"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="4.6" y="3.6" width="2.5" height="8.8" rx="0.6" fill="currentColor"/><rect x="8.9" y="3.6" width="2.5" height="8.8" rx="0.6" fill="currentColor"/></svg>';
+  const setToggleIcon = playing => { if (toggleBtn) toggleBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY; };
+
+  // 播放/暂停按钮：乐观更新——立刻翻转 UI，不等后端；请求后台发，稍后对齐真实状态
+  toggleBtn?.addEventListener('click', () => {
+    if (snapshot) snapshot.playing = !snapshot.playing;
+    setToggleIcon(snapshot ? snapshot.playing : false);
+    fetch('/api/music/toggle', { headers: { 'X-Card': '1' } }).catch(() => {});
+    setTimeout(pollMusic, 600);   // 之后用真实状态校正
+  });
 
   // 根据 position（秒）从 lyrics 数组里找当前行索引
   function currIdx(lyrics, pos) {
@@ -1926,6 +2044,7 @@ applySleepMode();
     artistEl.textContent = d.artist || '—';
     playDotEl.classList.toggle('playing', !!d.playing);
     if (headerSong) headerSong.textContent = d.title || '';
+    if (toggleBtn) { toggleBtn.classList.add('show'); setToggleIcon(d.playing); }
 
     // 封面：URL 变化才更新（切歌、或异步换成网易云高清图时）
     if (d.artwork !== lastArtwork) {
@@ -1953,6 +2072,7 @@ applySleepMode();
     titleEl.textContent  = '未播放';
     artistEl.textContent = '—';
     playDotEl.classList.remove('playing');
+    if (toggleBtn) toggleBtn.classList.remove('show');
     coverEl.classList.remove('loaded');
     coverEl.src = '';
     if (headerSong)  headerSong.textContent = '';
@@ -2065,7 +2185,7 @@ setInterval(fetchGpu, 5000);
 
 // ── 栏间分隔线系统：每两栏之间一条，拖动调整相邻的固定宽度栏 ──
 const PANE_W_KEY   = 'claude-dash-pane-widths';
-const PANE_DEFAULT = { paneTime: 210, paneGpu: 200, paneGpu2: 200, paneMusic: 160, panePomo: 160 };   // 固定宽度栏的默认宽（弹性栏不在此表）
+const PANE_DEFAULT = { paneTime: 210, paneGpu: 200, paneGpu2: 200, paneMusic: 160, panePomo: 160, paneText: 190 };   // 固定宽度栏的默认宽（弹性栏不在此表）
 const mainBox = document.querySelector('.main');
 const panes   = () => [...mainBox.querySelectorAll(':scope > .pane')];
 const isFixedPane = p => p && getComputedStyle(p).flexGrow === '0';
@@ -2684,15 +2804,21 @@ const BED = {
   sleep: { x: 705, y: 28, dir: -1, scale: 0.8 }, // 躺姿坐标；scale=床上临时缩放（1=原大小，sit 同样支持）
 };
 
-// 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact]
-// Interact 仅由点击触发（所有行概率为 0），播完必回 Relax
-const STATES  = ['Relax', 'Move', 'Sit', 'Sleep', 'Interact'];
+// 勿扰模式：年只在床位附近活动的左边界（x 越小越靠左；床心约 738）
+const DND_X_MIN = BED.x - 70;
+
+// 动画名 → 下一步概率分布 [Relax, Move, Sit, Sleep, Interact, Sit2]
+// Interact 仅由点击触发；Sit2 仅由 petPlay('Sit2') 触发（无人随机进入，故各行末列=0）
+// Sit2 = 下半身 Sit + 上半身 Relax 的混合"虚拟状态"（track0 实放 Sit）
+const STATES  = ['Relax', 'Move', 'Sit', 'Sleep', 'Interact', 'Sit2', 'Special'];
 const MARKOV  = {
-  Relax:    [0.35, 0.35, 0.20, 0.10, 0],
-  Move:     [0.35, 0.65, 0.00, 0.00, 0],
-  Sit:      [0.35, 0.00, 0.65, 0.00, 0],
-  Sleep:    [0.05, 0.00, 0.35, 0.60, 0],
-  Interact: [1.00, 0.00, 0.00, 0.00, 0],
+  Relax:    [0.35, 0.35, 0.10, 0.10,  0,  0.10],
+  Move:     [0.35, 0.65, 0.00, 0.00,  0,  0.00],
+  Sit:      [0.25, 0.00, 0.35, 0.00,  0,  0.40],   // Sit 后偶尔 Sit2 维持坐姿，或 Relax 起身活动
+  Sleep:    [0.05, 0.00, 0.00, 0.60,  0,  0.35],   // 睡着了就别吵喽
+  Interact: [1.00, 0.00, 0.00, 0.00,  0,  0   ],
+  Sit2:     [0.25, 0.00, 0.35, 0.00,  0,  0.40],   // 维持坐姿，偶尔起身回 Relax
+  Special:  [1.00, 0.00, 0.00, 0.00,  0,  0   ],   // 双击触发的一次性动作，播完回 Relax
 };
 
 function pickNext(current) {
@@ -2759,13 +2885,75 @@ async function initPet() {
 
   const skeleton = new spine.Skeleton(sd);
 
+  // 调试钩子：控制台查骨头/插槽名，做程序化表达（路线 A）
+  window.petSkeleton = skeleton;
+  window.petBones = () => skeleton.bones.map(b => b.data.name);
+  window.petSlots = () => skeleton.slots.map(s => s.data.name);
+  window.petAnims = () => sd.animations.map(a => a.name);   // 列出模型里全部动画名
+
+  // ── 程序化躯体表达（路线 A）：动画里没有的两个新动作 ──────────
+  // ① 看向光标：鼠标靠近时上半身+头转向光标  ② 拖拽甩动：被拎着移动时身体随惯性摆
+  // 腰/胸/头被动画 K，用叠加(+=)；朝向翻转用 scaleX 符号补偿，保证方向正确
+  const bWaist = skeleton.findBone('F_Waist_01');
+  const bChest = skeleton.findBone('F_Chest_01');
+  const bHead  = skeleton.findBone('F_Head_01');
+
+  const LOOK_RANGE = 260;   // 光标水平距离 ≤ 此值才看过去（px）
+  const TURN_MARGIN = 24;   // 光标在背后超过此距离才转身（防来回抖）
+  const LOOK_GAIN  = 0.3;  // 距离→倾斜增益
+  const LOOK_MAX   = 25;    // 最大倾斜（度）
+  const LOOK_LERP  = 0.12;  // 看向平滑
+  const LOOK_DWELL = 1.0;   // 光标进入范围需连续停留多少秒才触发看向（防快速划过）
+  const SWAY_GAIN  = 0.05;  // 拖拽速度→摆动增益
+  const SWAY_MAX   = 18;    // 最大摆动（度）
+  const SWAY_LERP  = 0.18;  // 摆动平滑
+
+  let leanCur = 0, swayCur = 0, prevPetX = null, lookDwell = 0;
+
+  function applyExpression(now, delta) {
+    const petX = skeleton.x / PR;
+    let leanTarget = 0, swayTarget = 0;
+
+    if (mode === 'drag') {
+      lookDwell = 0;
+      if (prevPetX != null && delta > 0) {
+        const vel = (petX - prevPetX) / delta;   // px/s，身体反向滞后 = 惯性
+        swayTarget = Math.max(-SWAY_MAX, Math.min(SWAY_MAX, -vel * SWAY_GAIN));
+      }
+    } else if (mode === 'auto' && curAnim !== 'Sleep' && curAnim !== 'Interact' && curAnim !== 'Special') {
+      const dx   = lastMouse.x - petX;
+      const infl = Math.max(0, 1 - Math.abs(dx) / LOOK_RANGE);   // 越近影响越大
+      // 光标在范围内累计停留时间；离开即清零
+      lookDwell = infl > 0 ? lookDwell + delta : 0;
+      if (lookDwell >= LOOK_DWELL) {   // 停留满 1s 才看向/转身
+        // 光标在背后且在关注范围内 → 转身面向它（行走时不强制掉头）
+        if (curAnim !== 'Move' && Math.abs(dx) > TURN_MARGIN) dir = dx > 0 ? 1 : -1;
+        leanTarget = Math.max(-LOOK_MAX, Math.min(LOOK_MAX, dx * LOOK_GAIN)) * infl;
+      }
+    } else {
+      lookDwell = 0;   // 睡觉/互动/特殊/拖拽外的其它状态：重置停留计时
+    }
+    prevPetX = petX;
+
+    leanCur += (leanTarget - leanCur) * LOOK_LERP;
+    swayCur += (swayTarget - swayCur) * SWAY_LERP;
+
+    // 朝向补偿后分配到三根骨（用 dir 直接判，转身同帧即生效）
+    const f    = dir > 0 ? 1 : -1;
+    const lean = leanCur * f, sway = swayCur * f;
+    if (bWaist) bWaist.rotation += lean * 0.30 + sway * 0.50;
+    if (bChest) bChest.rotation += lean * 0.40 + sway * 0.30;
+    if (bHead)  bHead.rotation  += lean * 0.30 + sway * 0.20;
+  }
+
   // 当前地面高度 + 左右走动边界（跳线时动态更新）
   let currentFloorY = FLOOR_Y;
   let currentXMin   = X_MIN;
   let currentXMax   = X_MAX;
 
   // 鼠标交互状态
-  let mode      = 'auto';   // 'auto' 自主行动 | 'drag' 被拖拽 | 'fall' 下落中
+  let dnd       = false;    // 勿扰模式：限制在床位附近活动
+  let mode      = 'auto';   // 'auto' 自主行动 | 'drag' 被拖拽 | 'fall' 下落中 | 'task' 导航 | 'sleep' 睡觉
   let fallVy    = 0;        // 下落速度（px/s）
   let dragStart = null;     // 按下信息 {mx, my, sx, sy, moved}
   const lastMouse  = { x: -1, y: -1 };
@@ -2842,6 +3030,48 @@ async function initPet() {
 
   const state = new spine.AnimationState(stateData);
   let curAnim = 'Relax';
+
+  // ── Sit2：下半身 Sit + 上半身 Relax（不改 Sit 原码，渲染时混合）──
+  // 第二个 AnimationState 专放 Relax；每帧在 Sit 姿态上覆盖全身为 Relax，
+  // 再把"上半身以外"的骨头还原回 Sit。上半身 = 胸(F_Chest_01)的子树(躯干/手臂/头/头发)，
+  // 腿脚挂在腰/胯下、不在胸子树里 → 保持 Sit 坐姿。
+  let relaxState = null, sit2Lower = null, sit2LowerIk = null;
+  {
+    const upperRoot = skeleton.findBone('F_Chest_01') || skeleton.findBone('F_Waist_01');
+    if (has('Sit') && has('Relax') && upperRoot) {
+      relaxState = new spine.AnimationState(stateData);
+      relaxState.setAnimation(0, 'Relax', true);
+      const upper = new Set();
+      (function collect(b) { upper.add(b); b.children.forEach(collect); })(upperRoot);
+      sit2Lower = skeleton.bones.filter(b => !upper.has(b));   // 胯/腿脚/IK 目标等：保持 Sit
+      // 下半身的 IK 约束（如脚部 IK）：目标骨不在上半身子树里
+      sit2LowerIk = skeleton.ikConstraints.filter(c => c.target && !upper.has(c.target));
+    }
+  }
+
+  function applySit2Blend(delta) {
+    if (curAnim !== 'Sit2' || !relaxState) return;
+    // 暂存下半身骨 + 脚部 IK 约束的 Sit 值
+    for (const b of sit2Lower) {
+      b._x = b.x; b._y = b.y; b._r = b.rotation;
+      b._sx = b.scaleX; b._sy = b.scaleY; b._hx = b.shearX; b._hy = b.shearY;
+    }
+    for (const c of sit2LowerIk) {
+      c._mix = c.mix; c._soft = c.softness; c._bend = c.bendDirection;
+      c._comp = c.compress; c._str = c.stretch;
+    }
+    relaxState.update(delta);
+    relaxState.apply(skeleton);   // 全身覆盖为 Relax
+    // 还原下半身骨 + IK 约束回 Sit（IK 在 updateWorldTransform 时据此解算腿 = 坐姿）
+    for (const b of sit2Lower) {
+      b.x = b._x; b.y = b._y; b.rotation = b._r;
+      b.scaleX = b._sx; b.scaleY = b._sy; b.shearX = b._hx; b.shearY = b._hy;
+    }
+    for (const c of sit2LowerIk) {
+      c.mix = c._mix; c.softness = c._soft; c.bendDirection = c._bend;
+      c.compress = c._comp; c.stretch = c._str;
+    }
+  }
   let dir     = -1; // -1 = 面向左，1 = 面向右
   state.setAnimation(0, curAnim, true);
 
@@ -2885,32 +3115,64 @@ async function initPet() {
     skeleton.y = FLOOR_Y * PR;
   }
 
-  window.petSetSleepMode = sleep => {
+  // 走向床位：复用值班导航的 down→walk 两段；到位后执行 then（'sleep' 躺床 / 'dnd' 交回自主）
+  function walkToBed(then) {
+    if (alarm.state !== 'off') { alarm.dismissed = alarm.level; alarm.state = 'off'; }
+    mode = 'task'; fallVy = 0; dragStart = null;
+    task = {
+      kind: 'bed', then,
+      targetX: then === 'sleep' ? BED.sleep.x : BED.sit.x,
+      // 用真实高度判断，被拖到半空松手也会先落地再走（不会半空平移）
+      phase: skeleton.y / PR > FLOOR_Y + 2 ? 'down' : 'walk',
+    };
+    if (task.phase === 'down' && curAnim !== 'Relax') { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
+  }
+
+  // 直接躺到床上（不走路，用于初始化/恢复）
+  function sleepOnBedNow() {
+    task = null;
+    if (alarm.state !== 'off') { alarm.dismissed = alarm.level; alarm.state = 'off'; }
+    mode = 'sleep'; fallVy = 0; dragStart = null;
+    placeOnBed('sleep');
+    const want = has('Sleep') ? 'Sleep' : 'Relax';
+    if (curAnim !== want) { state.setAnimation(0, want, true); curAnim = want; }
+  }
+
+  window.petSetSleepMode = (sleep, animate = false) => {
     if (sleep) {
-      task = null;
-      if (alarm.state !== 'off') {
-        alarm.dismissed = alarm.level;
-        alarm.state = 'off';
-      }
-      mode = 'sleep';
-      fallVy = 0;
-      dragStart = null;
-      placeOnBed('sleep');
-      const want = has('Sleep') ? 'Sleep' : 'Relax';
-      if (curAnim !== want) {
-        state.setAnimation(0, want, true);
-        curAnim = want;
-      }
+      if (animate) walkToBed('sleep');   // 走过去再躺，不瞬移
+      else sleepOnBedNow();
       return;
     }
 
+    // 退出睡觉：解除强制睡觉，交回状态机——不强制切 Relax，
+    // 继续放当前 Sleep 动画，下一次 complete() 时按 Markov 选下一步（起身/离床在 complete 里处理）
     if (mode === 'sleep') {
       mode = 'auto';
-      leaveBed();
-      if (has('Relax')) {
-        state.setAnimation(0, 'Relax', true);
-        curAnim = 'Relax';
+    } else if (mode === 'task' && task && task.kind === 'bed' && task.then === 'sleep') {
+      // 还在"走去睡觉"途中（尚未入睡）→ 取消任务，回自主
+      task = null;
+      mode = 'auto';
+      if (has('Relax')) { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
+    }
+  };
+
+  window.petSetDnd = (on, animate = false) => {
+    dnd = on;
+    if (on) {
+      if (mode === 'sleep') return;   // 睡觉优先，不打扰
+      if (alarm.state !== 'off') { alarm.dismissed = alarm.level; alarm.state = 'off'; }
+      if (mode === 'task' && !(task && task.kind === 'bed')) { task = null; mode = 'auto'; }  // 取消用量值班任务
+      if (animate) {
+        walkToBed('dnd');             // 走回床位附近
+      } else {
+        // 初始化/恢复：直接落到床位附近地面
+        if (currentFloorY > FLOOR_Y) { onBed = false; petScale = 1; currentFloorY = FLOOR_Y; skeleton.y = 0; }
+        currentXMin = X_MIN; currentXMax = X_MAX;
+        if (skeleton.x / PR < DND_X_MIN) skeleton.x = DND_X_MIN * PR;
       }
+    } else if (mode === 'task' && task && task.kind === 'bed' && task.then === 'dnd') {
+      task = null; mode = 'auto';      // 解除时若正走向床，取消
     }
   };
 
@@ -2933,7 +3195,7 @@ async function initPet() {
     complete() {
       if (mode !== 'auto') {
         // 值班中被点击：Interact 播完后恢复值班姿势（否则定格在最后一帧）
-        if (mode === 'task' && alarm.state === 'posted' && curAnim === 'Interact') postAlarmPose();
+        if (mode === 'task' && alarm.state === 'posted' && (curAnim === 'Interact' || curAnim === 'Special')) postAlarmPose();
         return;   // 拖拽/下落/任务中暂停状态机
       }
       const prev = curAnim;
@@ -2942,21 +3204,24 @@ async function initPet() {
       // 首次进入 Sleep：在床边就躺床上
       if (next === 'Sleep' && prev !== 'Sleep') bedSnap('sleep');
 
-      // 首次进入 Sit：床吸附优先；否则找附近可坐的线（y >= SIT_MIN_H），60% 概率跳过去坐
-      // （Sit→Sit 续播不重新选线）
-      if (next === 'Sit' && prev !== 'Sit' && !bedSnap('sit')) {
-        const sittable = findNearbyLines(currentFloorY).filter(ln => ln.y >= SIT_MIN_H);
-        if (sittable.length > 0 && Math.random() < 0.6) {
-          jumpTo(sittable[Math.floor(Math.random() * sittable.length)]);
-        } else if (currentFloorY < SIT_MIN_H) {
-          // 没跳走且当前楼层太低（坐姿会穿模）→ 改为 Relax
-          next = 'Relax';
+      // 首次进入"坐"（Sit 或 Sit2）：床吸附优先（仅 Sit）；否则找附近可坐的线
+      //（y >= SIT_MIN_H），60% 概率跳过去坐；都不行且当前楼层太低 → 改 Relax（坐姿会穿模）。
+      // Sit↔Sit2 互转视为续坐，不重新选线。
+      const sitLike = n => n === 'Sit' || n === 'Sit2';
+      if (sitLike(next) && !sitLike(prev)) {
+        const snapped = next === 'Sit' ? bedSnap('sit') : false;   // Sit2 不吸床
+        if (!snapped) {
+          const sittable = findNearbyLines(currentFloorY).filter(ln => ln.y >= SIT_MIN_H);
+          if (sittable.length > 0 && Math.random() < 0.6 && !dnd) {   // 勿扰时不爬上面板横线
+            jumpTo(sittable[Math.floor(Math.random() * sittable.length)]);
+          } else if (currentFloorY < SIT_MIN_H) {
+            next = 'Relax';
+          }
         }
-        // 当前楼层可坐 → 就地坐下，不改楼层
       }
 
-      // 起身离床（转去非坐/躺状态）：恢复地面高度与体型
-      if (onBed && next !== 'Sit' && next !== 'Sleep') {
+      // 起身离床（转去非坐/躺状态）：恢复地面高度与体型（Sit2 也算坐，不离床）
+      if (onBed && next !== 'Sit' && next !== 'Sleep' && next !== 'Sit2') {
         onBed = false;
         petScale = 1;
         currentFloorY = FLOOR_Y;
@@ -2972,7 +3237,10 @@ async function initPet() {
         }
       }
 
-      if (next !== prev) state.setAnimation(0, next, true);
+      // Sit2 是虚拟状态：track0 实放 Sit，仅 curAnim 标记为 Sit2（概率在 MARKOV 里调）
+      const prevTrack = prev === 'Sit2' ? 'Sit' : prev;
+      const nextTrack = next === 'Sit2' ? 'Sit' : next;
+      if (nextTrack !== prevTrack) state.setAnimation(0, nextTrack, true);
       curAnim = next;
       if (curAnim === 'Move' && Math.random() < 0.4) dir *= -1;
     }
@@ -3107,7 +3375,7 @@ async function initPet() {
 
   // renderUsage 每次拿到新数据时调用
   window.petUsageAlarm = (pct, stale) => {
-    if (localStorage.getItem(SLEEP_KEY) === '1' || mode === 'sleep') return;
+    if (localStorage.getItem(SLEEP_KEY) === '1' || mode === 'sleep' || dnd) return;   // 勿扰时不去值班
     if (stale || pct == null) return;
     const prev = lastPct5h;
     lastPct5h = pct;
@@ -3141,6 +3409,14 @@ async function initPet() {
   // ── 调试接口：控制台直接切换动画（含床吸附逻辑）────────────
   // 用法：petPlay('Sleep') / petPlay('Sit') / petPlay('Relax') / petPlay('Move') / petPlay('Interact')
   window.petPlay = name => {
+    if (name === 'Sit2') {
+      if (!relaxState) { console.warn('Sit2 需要 Sit 与 Relax 动画'); return false; }
+      mode = 'auto';
+      if (onBed) { onBed = false; petScale = 1; currentFloorY = FLOOR_Y; skeleton.y = FLOOR_Y * PR; }
+      state.setAnimation(0, 'Sit', true);   // track0 实放 Sit
+      curAnim = 'Sit2';                       // 虚拟状态，渲染时上半身覆盖为 Relax
+      return true;
+    }
     if (!has(name)) { console.warn('模型没有该动画：', name); return false; }
     mode = 'auto';
     const prev = curAnim;
@@ -3149,7 +3425,7 @@ async function initPet() {
     if (onBed && name !== 'Sit' && name !== 'Sleep') {
       onBed = false; petScale = 1; currentFloorY = FLOOR_Y; skeleton.y = FLOOR_Y * PR;
     }
-    state.setAnimation(0, name, name !== 'Interact');
+    state.setAnimation(0, name, name !== 'Interact' && name !== 'Special');   // Interact/Special 播一次
     curAnim = name;
     return true;
   };
@@ -3199,17 +3475,29 @@ async function initPet() {
     }
   });
 
+  let lastClickT = 0;
   document.addEventListener('mouseup', () => {
     if (!dragStart) return;
     const wasDrag = dragStart.moved;
     dragStart = null;
     if (wasDrag) {
-      mode = 'fall';            // 释放 → 下落，落点在 render 里逐帧判定
-      fallVy = 0;
-    } else if (has('Interact')) {
-      // 原地点击 → 互动动画（播一次，完毕经 Markov 回 Relax）
-      state.setAnimation(0, 'Interact', false);
-      curAnim = 'Interact';
+      if (dnd) {
+        walkToBed('dnd');       // 勿扰中被拖走 → 落地后自己走回床位
+      } else {
+        mode = 'fall';          // 释放 → 下落，落点在 render 里逐帧判定
+        fallVy = 0;
+      }
+      return;
+    }
+    // 原地点击：双击 → Special（复杂特殊动作），单击 → Interact；都播一次后经 Markov 回 Relax
+    const now = performance.now();
+    if (now - lastClickT < 320 && has('Special')) {
+      state.setAnimation(0, 'Special', false);
+      curAnim = 'Special';
+      lastClickT = 0;
+    } else {
+      if (has('Interact')) { state.setAnimation(0, 'Interact', false); curAnim = 'Interact'; }
+      lastClickT = now;
     }
   });
 
@@ -3228,8 +3516,42 @@ async function initPet() {
     const delta = Math.min(now - last, 0.1);
     last = now;
 
+    // 走向床位任务（勿扰/睡觉）：下落到地面 → 走到床位 x → 躺床或交回自主
+    if (mode === 'task' && task && task.kind === 'bed') {
+      if (task.phase === 'down') {
+        const prevY = skeleton.y / PR;
+        fallVy += GRAVITY * delta;
+        const newY = prevY - fallVy * delta;
+        if (newY <= 0) {
+          skeleton.y = 0; fallVy = 0;
+          currentFloorY = FLOOR_Y; currentXMin = X_MIN; currentXMax = X_MAX;
+          task.phase = 'walk';
+        } else {
+          skeleton.y = newY * PR;
+        }
+      } else if (task.phase === 'walk') {
+        if (curAnim !== 'Move') { state.setAnimation(0, 'Move', true); curAnim = 'Move'; }
+        const sx = skeleton.x / PR;
+        dir = task.targetX > sx ? 1 : -1;
+        skeleton.x += dir * WALK_SPD * PR * delta;
+        if (Math.abs(skeleton.x / PR - task.targetX) < 4) {
+          const then = task.then;
+          task = null;
+          if (then === 'sleep') {
+            mode = 'sleep';
+            placeOnBed('sleep');
+            const want = has('Sleep') ? 'Sleep' : 'Relax';
+            if (curAnim !== want) { state.setAnimation(0, want, true); curAnim = want; }
+          } else {
+            mode = 'auto';   // dnd：交回自主行为，由 dnd 约束限制在床位附近
+            if (has('Relax')) { state.setAnimation(0, 'Relax', true); curAnim = 'Relax'; }
+          }
+        }
+      }
+    }
+
     // 报警任务：下落到地面 → 走向 5 小时条 → 跳上去值班
-    if (mode === 'task' && task) {
+    else if (mode === 'task' && task) {
       if (task.phase === 'down') {
         // 心意已决，无视中途横线直落地面
         const prevY = skeleton.y / PR;
@@ -3289,10 +3611,11 @@ async function initPet() {
       }
     }
 
-    // 行走时更新 x 坐标
+    // 行走时更新 x 坐标（勿扰模式下左边界收紧到床位附近）
     if (mode === 'auto' && curAnim === 'Move') {
       skeleton.x += dir * WALK_SPD * PR * delta;
-      if (skeleton.x < currentXMin * PR)      { skeleton.x = currentXMin * PR; dir =  1; }
+      const xmin = dnd ? Math.max(currentXMin, DND_X_MIN) : currentXMin;
+      if (skeleton.x < xmin * PR)             { skeleton.x = xmin * PR; dir =  1; }
       else if (skeleton.x > currentXMax * PR) { skeleton.x = currentXMax * PR; dir = -1; }
     }
 
@@ -3309,6 +3632,8 @@ async function initPet() {
 
     state.update(delta);
     state.apply(skeleton);
+    applySit2Blend(delta);         // Sit2：上半身覆盖为 Relax（仅 curAnim==='Sit2' 时）
+    applyExpression(now, delta);   // 程序化躯体表达：叠加在动画之上
     skeleton.updateWorldTransform();
 
     shader.bind();
@@ -3332,6 +3657,7 @@ async function initPet() {
   restorePetState();
   window.petCheckFloor();
   window.petSetSleepMode(localStorage.getItem(SLEEP_KEY) === '1');
+  window.petSetDnd(localStorage.getItem('claude-dash-dnd') === '1');   // 恢复勿扰（不走动，直接就位）
 
   // 启动时如果额度已经告急，立刻上岗
   if (window.USAGE_DATA && localStorage.getItem(SLEEP_KEY) !== '1') {

@@ -246,26 +246,28 @@ async function fetchLrc(songId) {
 }
 
 function fetchMusic() {
+  // 读不到 / 无有效音乐信息时不清空，保留上一首并标记暂停——
+  // 这样暂停后(系统可能丢掉 Now Playing 条目)或切到视频/直播时，音乐栏不会跳回「未播放」。
+  // 不清 musicSong：同一首歌恢复播放不会被当成切歌重搜。
+  const keepStale = () => {
+    musicCache = musicCache.ok ? { ...musicCache, playing: false, rate: 0 } : { ok: false };
+  };
+
   let info;
   try {
     // artworkData 是大块 base64，放宽 maxBuffer 避免截断
     const out = execFileSync(MEDIA_CONTROL, ['get'], { timeout: 4000, maxBuffer: 8 * 1024 * 1024 })
       .toString().trim();
     info = JSON.parse(out);
-  } catch {
-    musicCache = { ok: false };
-    musicSong  = '';
-    return;
-  }
+  } catch { keepStale(); return; }
 
   const title  = info.title  || '';
   const artist = info.artist || '';
-  if (!title) { musicCache = { ok: false }; musicSong = ''; return; }
+  const bundle = info.bundleIdentifier || '';
+  const isMusic = MUSIC_BUNDLES.has(bundle);
+  // 无标题 / 非音乐源（视频/直播/浏览器）：保留上一首，不跳「未播放」
+  if (!title || !isMusic) { keepStale(); return; }
 
-  const bundle   = info.bundleIdentifier || '';
-  const isMusic  = MUSIC_BUNDLES.has(bundle);
-  // 只认音乐 App：视频/直播/浏览器等一律当「未播放」，不显示
-  if (!isMusic) { musicCache = { ok: false }; musicSong = ''; return; }
   const playing  = info.playing === true || info.playbackRate > 0;
   // 进度由前端实时插值：elapsedTime(秒) + (now - timestamp) * rate
   const elapsed  = typeof info.elapsedTime  === 'number' ? info.elapsedTime  : 0;
@@ -319,6 +321,15 @@ setInterval(() => {
 function handleMusic(res) {
   musicLastReq = Date.now();
   if (!musicCache.ok && !musicSong) fetchMusic();
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(musicCache));
+}
+
+// 播放/暂停切换（有副作用，要求 X-Card 头）
+function handleMusicToggle(res) {
+  try { execFileSync(MEDIA_CONTROL, ['toggle-play-pause'], { timeout: 3000 }); } catch {}
+  fetchMusic();   // 立即刷新快照（状态可能略滞后，前端下一轮会校正）
+  musicLastReq = Date.now();
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(musicCache));
 }
@@ -411,6 +422,9 @@ const server = http.createServer((req, res) => {
 
   if (urlPath === '/api/music') {
     handleMusic(res);
+  } else if (urlPath === '/api/music/toggle') {
+    if (!fromCard) { res.writeHead(403); res.end('Forbidden'); return; }
+    handleMusicToggle(res);
   } else if (urlPath === '/api/refresh') {
     if (!fromCard) { res.writeHead(403); res.end('Forbidden'); return; }
     handleRefresh(res);

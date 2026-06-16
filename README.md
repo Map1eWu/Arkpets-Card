@@ -2,7 +2,6 @@
 
 一块 800×480 的桌面信息卡片：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只会在界面横线之间跳来跳去的明日方舟桌宠「年」。
 
-
 <table width="100%">
   <tr>
     <td><img src="demon_img/demon1.png" width="100%" />
@@ -17,6 +16,7 @@
 - 时钟与日期
 - 实时天气：基于浏览器定位 + [Open-Meteo](https://open-meteo.com/) 免费 API，显示温度、湿度、风速、当日最高/最低温，每 5 分钟自动刷新
 - 待办事项：勾选完成、hover 删除、点击时间内联编辑（自由文本）、底部快捷添加，数据存于 localStorage
+- 文本：一块随手记的便签，输入即自动保存到 localStorage，刷新/重开不丢
 - Claude Code 用量：5 小时 / 7 天双窗口用量条与重置倒计时，数据来自 claude.ai 服务端真实接口
 - 音乐：读取 macOS 系统「正在播放」（网易云 / Apple Music / Spotify 等），显示封面、歌名、歌手与**逐句滚动歌词**；歌词与高清封面来自网易云，进度在前端实时插值，歌词丝滑走字（详见下方「音乐」一节）
 - 深浅色主题：右上角齿轮打开设置，可选浅色 / 深色 / 跟随时间（19:00–7:00 自动深色）
@@ -30,9 +30,11 @@
 **桌宠「年」**
 
 - Spine WebGL 渲染（Spine 3.8 骨骼模型）
-- Markov 状态机驱动行为：Relax / Move / Sit / Sleep / Interact
+- Markov 状态机驱动行为：Relax / Move / Sit / Sleep / Interact，外加运行时混合出的 **Sit2**（坐姿 + 上半身放松）
+- 微表情：光标在身边停留会**转头看向**你、在背后会**转身**；拖拽时身体随惯性甩动（程序化叠加，非新美术）
+- 鼠标交互：像素级悬停检测（readPixels），**单击**播放互动动画、**双击**触发特殊动作（Special），可拖拽抛起——释放后受重力下落，落在下落路径上第一条横线上
+- 睡觉 / 勿扰：设置栏开关；开启后年会**走回床位**休息（不瞬移），勿扰中被拖走也会自己走回
 - 多楼层系统：自动扫描页面 DOM 的可见横向 border 作为「可站立的线」，年会跳上去坐着、再溜达下来
-- 鼠标交互：像素级悬停检测（readPixels），点击播放互动动画，可拖拽抛起——释放后受重力下落，落在下落路径上第一条横线上
 - 位置持久化：F5 刷新不丢位置（sessionStorage），关闭标签页或点用量栏的 ↺ 按钮重置
 
 ## 快速开始
@@ -57,7 +59,7 @@ brew install media-control   # 音乐功能依赖（见下）
 
 ## 音乐
 
-桌面端「正在播放」的来源是 macOS 系统级 Now Playing（锁屏/控制中心那套），所以**不限网易云**——放视频、直播也会显示对应标题（此时只显示标题、不搜歌词）。
+桌面端「正在播放」的来源是 macOS 系统级 Now Playing（锁屏/控制中心那套）。**只认音乐 App**（见 `MUSIC_BUNDLES`）——视频、直播、浏览器等不会显示。暂停后（系统可能丢掉 Now Playing 条目）或切到非音乐源时，音乐栏**保留上一首并标记暂停**，不跳回「未播放」。
 
 **为什么用 `media-control` 而不是 `nowplaying-cli`**：macOS 15.4 起 Apple 给 `mediaremoted` 加了 entitlement 校验，普通二进制（含 `nowplaying-cli`、自己编译的 Swift）直连 `MediaRemote.framework` 会被拒返回空。[`media-control`](https://github.com/ungive/media-control) 借系统自带、带授权的 `/usr/bin/perl` 去访问，因此在 macOS 15.4 / 26 上仍可用，且**无需关闭 SIP**。`brew install media-control` 即可。
 
@@ -84,37 +86,6 @@ brew install media-control   # 音乐功能依赖（见下）
 ```
 */5 * * * * cd /path/to/card && node update-usage.js
 ```
-
-## 主要常量
-
-**桌宠（`claude-dashboard.html`）**
-
-| 常量 | 默认值 | 说明 |
-|---|---|---|
-| `CARD_W × CARD_H` | 800×480 | 卡片尺寸 |
-| `SCALE` | 0.4 | 桌宠缩放 |
-| `WALK_SPD` | 45 | 行走速度 px/s |
-| `JUMP_RANGE` | 65 | 坐下时搜索上下横线的范围 px |
-| `SIT_MIN_H` | 30 | 低于此高度的线不可坐（坐姿会穿模） |
-| `MAX_FLOOR_Y` | CARD_H−50 | 可落/可坐线的最大高度 |
-| `GRAVITY` | 1200 | 拖拽释放后的下落加速度 px/s² |
-
-**音乐布局（`claude-dashboard.html`）**
-
-| 位置 | 说明 |
-|---|---|
-| `--music-split`（`.music-pane`） | 歌名歌手与歌词之间横线的位置（上半区占比，默认 60%） |
-| `.header` `height` | 顶栏固定高度（默认 42px，放大顶栏封面也不会撑高） |
-
-**音乐匹配（`server.js`）**
-
-| 位置 | 默认 | 说明 |
-|---|---|---|
-| `MUSIC_BUNDLES` | 网易云/Apple Music/Spotify/QQ 音乐 | 只有这些 App 在播时才搜歌词 |
-| `MEDIA_CONTROL` | Homebrew 路径兜底 | `media-control` 可执行文件位置 |
-| 图像比对阈值 | `0.20` | `searchSong` 内相似度阈值，越小越严 |
-| 候选下载数 | `8` | 图像比对时下载比对的候选数 |
-
 ## 更换桌宠模型
 
 模型与 [ArkPets-Web](https://github.com/fuyufjh/ArkPets-Web) 同源，来自 [Ark-Models](https://github.com/isHarryh/Ark-Models) 模型库。其 `models/` 目录下每个文件夹是一只干员基建小人，由 `.skel` + `.atlas` + `.png` 三件套组成（具体清单见仓库根目录的 `models_data.json`）。
