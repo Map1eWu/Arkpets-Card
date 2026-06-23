@@ -1,6 +1,6 @@
 # Arkpets-Card
 
-一块 800×480 的桌面信息卡片：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只会在界面横线之间跳来跳去的明日方舟桌宠「年」。
+一块 800×480 的桌面信息卡片（Electron 应用）：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只有情感模型、会在界面横线之间跳来跳去的明日方舟桌宠「年」。
 
 <table width="100%">
   <tr>
@@ -18,7 +18,7 @@
 - 待办事项：勾选完成、hover 删除、点击时间内联编辑（自由文本）、底部快捷添加，数据存于 localStorage
 - 文本：一块随手记的便签，输入即自动保存到 localStorage，刷新/重开不丢
 - Claude Code 用量：5 小时 / 7 天双窗口用量条与重置倒计时，数据来自 claude.ai 服务端真实接口
-- 音乐：读取 macOS 系统「正在播放」（网易云 / Apple Music / Spotify 等），显示封面、歌名、歌手与**逐句滚动歌词**；歌词与高清封面来自网易云，进度在前端实时插值，歌词丝滑走字（详见下方「音乐」一节）
+- 音乐：读取 macOS 系统「正在播放」（网易云 / Apple Music / Spotify 等），显示封面、歌名、歌手与**逐句滚动歌词**；歌词与高清封面来自网易云，进度在前端实时插值，歌词丝滑走字（详见下方「音乐」一节）；支持 VIP 无损播放（直接通过 card 播放网易云曲目）
 - 深浅色主题：右上角齿轮打开设置，可选浅色 / 深色 / 跟随时间（19:00–7:00 自动深色）
 - 用量报警：5 小时额度 ≥80% 时，年会自己走到用量条上、坐在填充末端"值班"；≥95% 躺平，额度重置后庆祝离岗
 - 开机自启：设置栏一键开关（macOS launchd）
@@ -26,6 +26,12 @@
 - 顶栏小组件：
   - **顶栏时间**——关闭「时间」栏时，顶栏 Claude 右侧自动显示当前时间（开着时不重复显示）
   - **顶栏歌曲**——设置栏开关；开启后在顶栏右侧（日期左边）显示小封面 + 歌名。**仅当「音乐」栏关闭时可用**，「音乐」栏打开时开关变灰
+
+**全局快捷键**
+
+- 显示/隐藏 card 窗口、播放暂停、下一首、生成插画、音量 ±5%
+- 快捷键可在设置栏「快捷键」页自定义（点击录制），支持即时重注册
+- 默认：`⌘⇧C` 显示/隐藏、`⌘⇧P` 播放暂停、`⌘⇧G` 生成插画、`⌘⌥↑/↓` 音量
 
 **桌宠「年」**
 
@@ -36,6 +42,7 @@
 - 睡觉 / 勿扰：设置栏开关；开启后年会**走回床位**休息（不瞬移），勿扰中被拖走也会自己走回
 - 多楼层系统：自动扫描页面 DOM 的可见横向 border 作为「可站立的线」，年会跳上去坐着、再溜达下来
 - 位置持久化：F5 刷新不丢位置（sessionStorage），关闭标签页或点用量栏的 ↺ 按钮重置
+- **情感模型**：valence × arousal 二维情绪引擎，随交互/音乐/时间漂移，偶发在头顶生成心情插画（≤50×50 思想气泡贴纸，本地 Ollama + Stable Diffusion 生成，无需联网）
 
 ## 快速开始
 
@@ -44,16 +51,16 @@
 cp .env.example .env   # 按需填写 ACCOUNT_LABEL 等
 
 # 2. 安装依赖
-npm install                  # server.js 需要 @neteasecloudmusicapienhanced/api 与 jimp
+npm install                  # 包括 electron、@neteasecloudmusicapienhanced/api、jimp 等
 brew install media-control   # 音乐功能依赖（见下）
 
-# 3. 一键启动（拉起 server + Chrome 应用模式无边框窗口）
+# 3. 一键启动（Electron 无边框窗口）
 ./start.sh
-
-# 或手动：node server.js 后访问 http://localhost:3000
 ```
 
-`server.js` 本体只用 Node 内置模块起 HTTP 服务，但音乐功能用到两个 npm 包（`@neteasecloudmusicapienhanced/api`、`jimp`）和一个外部命令（`media-control`）。其余功能（天气、用量、GPU、桌宠）无额外依赖。
+`server.js` 在 Electron 主进程内启动，监听 `localhost:3000`。音乐功能额外依赖 `@neteasecloudmusicapienhanced/api`、`jimp` 与 `media-control`；情感/插画功能依赖本地 Ollama（`qwen2.5:7b`）与 Stable Diffusion（DrawThings / A1111）。其余功能无额外依赖。
+
+> **注意**：停止 card 时请用 `start.sh`（它用 `lsof -ti tcp:3000 -sTCP:LISTEN` 只杀监听方），勿直接 `pkill -f Electron`——VS Code 等也是 Electron 进程，会被误杀。
 
 **开机自启（macOS）**：设置栏（右上角齿轮）里打开"开机自启"开关即可——由本地 server 在 `~/Library/LaunchAgents/` 写入 launchd 配置，登录时自动执行 `start.sh`；关闭开关即移除，不留残留。
 
@@ -65,10 +72,11 @@ brew install media-control   # 音乐功能依赖（见下）
 
 数据流：
 
-1. 后端每 2 秒（无人查看时自动停）调 `media-control get`，拿到 `title / artist / album / duration / elapsedTime / timestamp / playbackRate / artworkData`（系统封面是 ~100px 小图）
+1. 后端起一个**常驻 `media-control stream` 子进程**（取代轮询），实时推送 diff 事件 → 合并入 `musicCache`；前端通过 **SSE `/api/music/events`** 订阅，切歌/暂停即时到达，无延迟
 2. 切歌时用「歌名 + 歌手」搜网易云，按 **专辑名 + 歌手 + 时长** 综合打分挑候选；不够确定时再用系统小图当指纹，对候选封面做**感知哈希 + 像素差**比对（`jimp`），锁定正在播放的那一版 → 歌词与高清封面都对得上
 3. 封面策略：先显示系统小图保证立即有画面，匹配到高置信版本后**异步替换成网易云高清图**；不确定时保留系统图（虽糊但确为当前曲）
 4. 进度由前端用 `elapsedTime + (now − timestamp) × playbackRate` 实时插值，250ms 刷新一次歌词高亮，暂停时自然冻结
+5. **VIP 无损播放**：右键贴纸可直接用 card 的 `<audio>` 播该曲（`/api/music/stream` 代理，支持 Range），网易云 app 与 card 两端自动协调（切歌让位、同曲暂停等）
 
 **布局**：歌名/歌手与歌词之间有一条可调横线，在 `claude-dashboard.html` 的 `.music-pane` 里改 `--music-split`（上半区占比，调大→横线下移、封面更大；调小→歌词更多）。封面在「上边界↔歌名」之间居中。
 

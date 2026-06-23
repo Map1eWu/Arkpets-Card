@@ -40,7 +40,24 @@ function runAppleScript(script) {
   fs.writeFileSync(tmp, script, 'utf8');
   const r = spawnSync('osascript', [tmp], { encoding: 'utf8', timeout: 20000 });
   try { fs.unlinkSync(tmp); } catch {}
-  if (r.error) throw r.error;
+  // spawnSync 整体超时（osascript 卡在 TCC 授权弹窗等）：r.error.code === 'ETIMEDOUT'
+  if (r.error) {
+    if (r.error.code === 'ETIMEDOUT') {
+      throw new Error('osascript 超时：请到「系统设置→隐私与安全性→自动化→Electron」勾选 Google Chrome（首次需在弹窗点「好」），并确认 claude.ai 标签已登录');
+    }
+    throw r.error;
+  }
+  // osascript 跑起来了但 AppleScript 内部报错（-1712 注入超时 / JS-from-AppleEvents 关闭等）在 stderr
+  if (r.status !== 0) {
+    const err = (r.stderr || '').trim();
+    if (err.includes('-1712') || /timed out|超时/.test(err)) {
+      throw new Error('Chrome 注入超时：claude.ai 标签未响应，请刷新该标签并确认已登录、停在正常页面');
+    }
+    if (/JavaScript through AppleScript|Apple Events/i.test(err)) {
+      throw new Error('Chrome 未允许 Apple 事件执行 JS：菜单 View → Developer → Allow JavaScript from Apple Events 打勾');
+    }
+    throw new Error(err.split('\n')[0] || 'osascript 执行失败');
+  }
   return (r.stdout || '').trim();
 }
 
@@ -54,7 +71,9 @@ tell application "Google Chrome"
   repeat with w in windows
     repeat with t in tabs of w
       if URL of t contains "claude.ai" then
-        execute t javascript "${esc(js)}"
+        with timeout of 10 seconds
+          execute t javascript "${esc(js)}"
+        end timeout
         return "ok"
       end if
     end repeat
@@ -70,7 +89,9 @@ tell application "Google Chrome"
   repeat with w in windows
     repeat with t in tabs of w
       if URL of t contains "claude.ai" then
-        return execute t javascript "${esc(expr)}"
+        with timeout of 10 seconds
+          return execute t javascript "${esc(expr)}"
+        end timeout
       end if
     end repeat
   end repeat
@@ -121,8 +142,9 @@ async function fetchUsage() {
   for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 1000));
     const val = evalInChrome(`sessionStorage.getItem('${STORAGE_KEY}')`);
-    if (val && val !== 'null' && val !== '') {
-      const result = JSON.parse(val);
+    if (val && val !== 'null' && val !== '' && val !== 'missing value') {
+      let result;
+      try { result = JSON.parse(val); } catch { continue; }
       if (!result.ok) throw new Error(result.error || '未知错误');
       return result.d;
     }

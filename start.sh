@@ -1,19 +1,21 @@
 #!/bin/bash
-# Claude Card 一键启动：拉起本地 server（如未运行）并打开 Chrome 应用模式窗口
+# Claude Card 一键启动（Electron）
+# - 已在运行：杀掉旧进程，重新启动
+# - 未运行：直接启动
 # 手动运行或由 launchd 开机自启调用（NODE_BIN 由自启配置注入）
 
 cd "$(dirname "$0")" || exit 1
-NODE="${NODE_BIN:-$(command -v node)}"
 
-# server 未运行则后台启动，并等待就绪
-if ! curl -s -o /dev/null --max-time 1 http://127.0.0.1:3000; then
-  nohup "$NODE" server.js > /tmp/claude-card.log 2>&1 &
-  for _ in $(seq 1 20); do
-    curl -s -o /dev/null --max-time 1 http://127.0.0.1:3000 && break
-    sleep 0.5
-  done
+ELECTRON="./node_modules/.bin/electron"
+
+# 只杀「监听」3000 的进程（card 本身）。绝不能用 `lsof -ti tcp:3000`——那会把
+# 「连接到」3000 的客户端也列出（如 VS Code 的 Launch 预览/浏览器），导致误杀它们。
+LISTENER=$(lsof -ti tcp:3000 -sTCP:LISTEN 2>/dev/null)
+if [ -n "$LISTENER" ]; then
+  echo "[card] 检测到 3000 端口监听，关闭旧 card 进程..."
+  echo "$LISTENER" | xargs kill -9 2>/dev/null
+  sleep 0.3
 fi
 
-# Chrome 应用模式窗口（无地址栏；Chrome 已运行时会转发给现有实例）
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-"$CHROME" --app=http://localhost:3000 > /dev/null 2>&1 &
+nohup "$ELECTRON" . > /tmp/claude-card.log 2>&1 &
+echo "[card] Electron 已启动"

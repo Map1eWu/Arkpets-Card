@@ -3,6 +3,12 @@
 
 # 运行时生成的个人数据
 usage-data.js
+data/
+emotion_images/
+emotion_prompt/
+
+# 本地工具配置
+.claude/
 
 # 依赖与杂项
 node_modules/
@@ -12,3 +18,5 @@ debug-screenshot.png
 test/
 md/
 CLAUDE.md
+CLAUDE_background.md
+CLAUDE_Emotion.md

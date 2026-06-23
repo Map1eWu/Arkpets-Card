@@ -58,7 +58,7 @@ body {
   width: 800px;
   height: 480px;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -73,7 +73,7 @@ body {
   height: 480px;
   pointer-events: none;
   cursor: grab;
-  z-index: 7;
+  z-index: 99;   /* 年恒在插画之上，不被贴纸遮住 */
 }
 
 /* ── Header ── */
@@ -163,20 +163,35 @@ body.header-music-on .header-cover { display: inline-block; }
 /* 设置栏：box-shadow 代替 border，避免被桌宠的横线扫描误认成可站立的线 */
 #settingsBar {
   position: absolute;
-  top: 42px;
+  top: 0;
   left: 0;
-  right: 0;
+  bottom: 0;
+  width: 230px;
   display: none;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  padding: 8px 20px;
+  flex-direction: column;
   background: var(--surface);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 6;
+  box-shadow: 4px 0 16px rgba(0,0,0,0.13);
+  z-index: 100;
+  overflow-y: auto;
 }
 
 #settingsBar.open { display: flex; }
+
+.settings-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.settings-section:last-child { border-bottom: none; }
+
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
 
 .settings-label {
   font-size: 12px;
@@ -186,6 +201,7 @@ body.header-music-on .header-cover { display: inline-block; }
 
 .seg {
   display: flex;
+  flex-wrap: wrap;
   background: var(--track);
   border-radius: 6px;
   padding: 2px;
@@ -216,7 +232,83 @@ body.header-music-on .header-cover { display: inline-block; }
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-bottom: 8px;
 }
+.settings-group:last-child { margin-bottom: 0; }
+/* 含 seg（可能换行）时标签贴顶对齐 */
+.settings-group:has(.seg) { align-items: flex-start; }
+/* 显示 section：标签列固定宽，seg 列共享同一宽度 → 按钮列真正对齐 */
+#settingsDisplay { display: grid; grid-template-columns: 28px 1fr; column-gap: 6px; row-gap: 8px; align-items: start; }
+#settingsDisplay .settings-section-title { grid-column: 1 / -1; margin-bottom: 0; }
+#settingsDisplay .settings-group { display: contents; }
+#settingsDisplay .settings-label { padding-top: 4px; }
+#themeSeg, #paneSeg { display: grid; grid-template-columns: repeat(3, 1fr); }
+#themeSeg button, #paneSeg button { text-align: center; padding: 3px 4px; white-space: nowrap; }
+
+.settings-switch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.settings-switch-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* settings 标签页（通用｜快捷键）*/
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+.settings-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 0;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.settings-tab.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.settings-page[hidden] { display: none; }
+
+/* 快捷键行 */
+.sc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sc-row:last-child { margin-bottom: 0; }
+.sc-key {
+  border: 1px solid var(--border);
+  background: var(--track);
+  color: var(--text);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 3px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  min-width: 56px;
+  text-align: center;
+  white-space: nowrap;
+}
+.sc-key:hover { border-color: var(--accent); }
+.sc-key.recording { color: var(--accent); border-color: var(--accent); border-style: dashed; }
+.sc-key.ok-flash   { border-color: var(--done); }
+.sc-key.fail-flash { border-color: #c85b50; color: #c85b50; }
 
 /* 开关 */
 .switch {
@@ -591,6 +683,8 @@ body.header-music-on .header-cover { display: inline-block; }
 }
 .music-toggle.show { display: flex; }
 .music-toggle:hover { opacity: 1; background: var(--card); }
+.music-sticker-btn { bottom: 40px; display: none; }
+.music-sticker-btn.show { display: flex; }
 
 /* ── Pomodoro Pane ── */
 .pomo-block { display: none; }
@@ -1303,6 +1397,133 @@ body.header-music-on .header-cover { display: inline-block; }
   width: 22px;
   height: 22px;
 }
+
+/* ── 情感引擎 debug 浮层 ── */
+#emotion-debug {
+  display: none;   /* 默认隐藏；window.emotionDebug=true 后显示 */
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  background: rgba(0,0,0,0.72);
+  color: #e8e8e8;
+  font: 10px/1.5 'SF Mono', monospace;
+  padding: 6px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  min-width: 150px;
+}
+#emotion-debug.visible { display: block; }
+#emotion-debug .ed-row { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+#emotion-debug .ed-label { width: 48px; color: #aaa; flex-shrink: 0; }
+#emotion-debug .ed-bar-bg {
+  flex: 1; height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden;
+}
+#emotion-debug .ed-bar-fill {
+  height: 100%; border-radius: 3px; transition: width 0.4s, background 0.4s;
+}
+#emotion-debug .ed-val { width: 36px; text-align: right; color: #ccc; }
+#emotion-debug .ed-event { margin-top: 4px; color: #f9c74f; font-size: 9px; }
+
+/* ── 情感气泡：文字 ── */
+.emotion-text-bubble {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.93);
+  color: #333;
+  border-radius: 10px;
+  padding: 5px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  max-width: 108px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s, left 0.09s linear, top 0.09s linear;
+}
+.emotion-text-bubble.visible { opacity: 1; }
+/* 去掉 inline span 的 baseline 撑高——让 div 内部高度纯由行高决定 */
+#emotion-text-content { display: block; }
+/* 气泡尾巴：底部三角，朝向年头顶 */
+.emotion-text-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid rgba(255, 255, 255, 0.93);
+}
+/* 气泡在年右侧 → 尾巴在气泡左下角 */
+.emotion-text-bubble.side-right::after { left: 14px; }
+/* 气泡在年左侧 → 尾巴在气泡右下角 */
+.emotion-text-bubble.side-left::after  { right: 14px; }
+
+/* ── 情感气泡：插画（可多个并存、可鼠标拖动） ── */
+.emotion-illus {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  /* z-index 8：高于 canvas(7)，可见且可拖动 */
+  z-index: 8;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+  pointer-events: auto;
+  cursor: grab;
+  opacity: 0;
+  transform-origin: center center;
+  /* rotate 与 scale 用独立属性，各自 transition：旋转即时跟手，缩放才延迟放大 */
+  rotate: var(--illus-rot, 0deg);
+  transition: opacity 0.35s, scale 0.28s ease, box-shadow 0.22s ease;
+}
+.emotion-illus.visible { opacity: 1; }
+/* hover：悬停 0.3s 后才放大（delay 只压在 scale 上，不影响旋转） */
+.emotion-illus:hover {
+  scale: 2.8;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  transition: opacity 0.35s, scale 0.28s ease 0.25s, box-shadow 0.22s ease 0.25s;
+}
+/* 拖动：不放大，倾斜角由 rotate 属性自动保持 */
+.emotion-illus.dragging { cursor: grabbing; scale: 1 !important; z-index: 20; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+/* 双击回正：临时给 rotate 加 0.3s 过渡，其它过渡保持原样（不抽搐） */
+.emotion-illus.rot-anim { transition: opacity 0.35s, scale 0.28s ease, box-shadow 0.22s ease, rotate 0.3s ease; }
+.emotion-illus img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  pointer-events: none;          /* 点击命中外层 div，便于拖动 */
+  -webkit-user-drag: none;       /* 禁掉浏览器原生图片拖拽残影 */
+}
+
+/* 插画废纸篓：拖动时从右上角弹出 */
+#illus-trash {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--surface);        /* 实心背景，融入主题 */
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  z-index: 101;   /* 删除目标最高，拖动时不被年(99)挡住 */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, background 0.15s, transform 0.15s;
+  transform: translateY(-6px);
+  cursor: default;
+}
+#illus-trash.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+#illus-trash.over {
+  background: rgb(220, 60, 60);      /* 实心红 */
+  border-color: rgb(220, 60, 60);
+  transform: translateY(0) scale(1.15);
+}
 </style>
 </head>
 <body>
@@ -1325,45 +1546,127 @@ body.header-music-on .header-cover { display: inline-block; }
 
 <!-- 设置栏（点击右上角齿轮展开） -->
 <div id="settingsBar">
-  <div class="settings-group">
-    <span class="settings-label">主题</span>
-    <div class="seg" id="themeSeg">
-      <button data-mode="light">浅色</button>
-      <button data-mode="dark">深色</button>
-      <button data-mode="auto">跟随时间</button>
+  <div class="settings-tabs">
+    <button class="settings-tab active" data-tab="general">通用</button>
+    <button class="settings-tab" data-tab="shortcuts">快捷键</button>
+  </div>
+  <!-- 通用页 -->
+  <div class="settings-page" data-page="general">
+  <!-- 显示 -->
+  <div class="settings-section" id="settingsDisplay">
+    <div class="settings-section-title">显示</div>
+    <div class="settings-group">
+      <span class="settings-label">主题</span>
+      <div class="seg" id="themeSeg">
+        <button data-mode="light">浅色</button>
+        <button data-mode="dark">深色</button>
+        <button data-mode="auto">跟随时间</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <span class="settings-label">栏目</span>
+      <div class="seg" id="paneSeg">
+        <button data-pane="paneTime">时间</button>
+        <button data-pane="paneGpu">GPU 1</button>
+        <button data-pane="paneGpu2">GPU 2</button>
+        <button data-pane="paneMusic">音乐</button>
+        <button data-pane="panePomo">番茄</button>
+        <button data-pane="paneText">文本</button>
+        <button data-pane="paneTodo">待办</button>
+      </div>
     </div>
   </div>
-  <div class="settings-group">
-    <span class="settings-label">栏目</span>
-    <div class="seg" id="paneSeg">
-      <button data-pane="paneTime">时间</button>
-      <button data-pane="paneGpu">GPU 1</button>
-      <button data-pane="paneGpu2">GPU 2</button>
-      <button data-pane="paneMusic">音乐</button>
-      <button data-pane="panePomo">番茄</button>
-      <button data-pane="paneText">文本</button>
-      <button data-pane="paneTodo">待办</button>
+  <!-- 年 -->
+  <div class="settings-section">
+    <div class="settings-section-title">年</div>
+    <div class="settings-switch-grid">
+      <div class="settings-switch-item">
+        <button class="switch" id="sleepToggle" title="Ta该睡觉啦～"></button>
+        <span class="settings-label">Sleep</span>
+      </div>
+      <div class="settings-switch-item">
+        <button class="switch" id="dndToggle" title="年走回床位附近休息，不再到处跑"></button>
+        <span class="settings-label">勿扰</span>
+      </div>
+      <div class="settings-switch-item">
+        <button class="switch" id="petResetVisToggle" title="显示/隐藏右下角的桌宠复位按钮"></button>
+        <span class="settings-label">复位键</span>
+      </div>
+      <div class="settings-switch-item">
+        <button class="switch" id="illusOffToggle" title="禁止生成心情插画（双击年时只出文案）"></button>
+        <span class="settings-label">插画</span>
+        <button id="illusClearBtn" title="清除当前所有心情插画" style="font-size:9px;padding:1px 5px;border-radius:3px;border:none;background:#ff8989;color:#fff;cursor:pointer;line-height:1.6;flex-shrink:0">清除</button>
+      </div>
     </div>
   </div>
-  <div class="settings-group">
-    <span class="settings-label">顶栏歌曲</span>
-    <button class="switch" id="headerMusicToggle" title="在顶栏右侧显示封面与歌名（仅「音乐」栏关闭时可用）"></button>
+  <!-- 系统 -->
+  <div class="settings-section">
+    <div class="settings-section-title">系统</div>
+    <div class="settings-switch-grid">
+      <div class="settings-switch-item">
+        <button class="switch" id="headerMusicToggle" title="在顶栏右侧显示封面与歌名（仅「音乐」栏关闭时可用）"></button>
+        <span class="settings-label">顶栏歌曲</span>
+      </div>
+      <div class="settings-switch-item">
+        <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
+        <span class="settings-label">开机自启</span>
+      </div>
+    </div>
   </div>
-  <div class="settings-group">
-    <span class="settings-label">开机自启</span>
-    <button class="switch" id="autostartToggle" title="登录 macOS 时自动启动服务并打开窗口"></button>
+  <!-- 声音 -->
+  <div class="settings-section">
+    <div class="settings-section-title">声音</div>
+    <div class="sc-row">
+      <span class="settings-label">card 音量</span>
+      <input type="range" id="cardVolumeSlider" min="0" max="100" step="10" value="30" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span class="settings-label" id="cardVolumeVal" style="min-width:34px;text-align:right">30%</span>
+    </div>
   </div>
-  <div class="settings-group">
-    <span class="settings-label">复位键</span>
-    <button class="switch" id="petResetVisToggle" title="显示/隐藏右下角的桌宠复位按钮"></button>
-  </div>
-  <div class="settings-group">
-    <span class="settings-label">Sleep</span>
-    <button class="switch" id="sleepToggle" title="Ta该睡觉啦～"></button>
-  </div>
-  <div class="settings-group">
-    <span class="settings-label">勿扰</span>
-    <button class="switch" id="dndToggle" title="年走回床位附近休息，不再到处跑"></button>
+  </div><!-- /通用页 -->
+
+  <!-- 快捷键页 -->
+  <div class="settings-page" data-page="shortcuts" hidden>
+    <div class="settings-section">
+      <div class="settings-section-title">窗口</div>
+      <div class="sc-row" data-action="toggleCard">
+        <span class="settings-label">显示 / 隐藏 card</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">音乐</div>
+      <div class="sc-row" data-action="musicToggle">
+        <span class="settings-label">播放 / 暂停</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      <!-- 暂时停用
+      <div class="sc-row" data-action="musicNext">
+        <span class="settings-label">下一首</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      -->
+      <div class="sc-row" data-action="genIllust">
+        <span class="settings-label">生成插图</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      <!-- 暂时停用
+      <div class="sc-row" data-action="musicLike">
+        <span class="settings-label">加入喜欢</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      -->
+      <div class="sc-row" data-action="volumeUp">
+        <span class="settings-label">音量加</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      <div class="sc-row" data-action="volumeDown">
+        <span class="settings-label">音量减</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+    </div>
+    <div class="settings-section" style="border-bottom:none">
+      <div style="font-size:10px;color:var(--muted);line-height:1.7">媒体键（播放/下一首）始终可用，不受此处影响。组合键需含 ⌘/⌃/⌥ 至少一个修饰键。</div>
+    </div>
   </div>
 </div>
 
@@ -1448,6 +1751,8 @@ body.header-music-on .header-cover { display: inline-block; }
         <div class="music-lyric-line next" id="lyricNext"></div>
       </div>
     </div>
+    <!-- 贴上专辑封面贴纸（有歌时显示，在暂停按钮上方）-->
+    <button class="music-toggle music-sticker-btn" id="musicStickerBtn" title="贴上专辑封面贴纸"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2 10 L5.5 6.5 L8 9 L10.5 6 L14 10" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="5.5" r="1.2" fill="currentColor"/></svg></button>
     <!-- 播放/暂停（右下角，有歌时显示）-->
     <button class="music-toggle" id="musicToggleBtn" title="播放/暂停"></button>
   </div>
@@ -1605,6 +1910,39 @@ body.header-music-on .header-cover { display: inline-block; }
 
 <!-- 桌宠 canvas -->
 <canvas id="pet-canvas"></canvas>
+
+<!-- 情感引擎 debug 浮层 -->
+<div id="emotion-debug">
+  <div class="ed-row">
+    <span class="ed-label">valence</span>
+    <div class="ed-bar-bg"><div class="ed-bar-fill" id="ed-v-fill"></div></div>
+    <span class="ed-val" id="ed-v-val"></span>
+  </div>
+  <div class="ed-row">
+    <span class="ed-label">arousal</span>
+    <div class="ed-bar-bg"><div class="ed-bar-fill" id="ed-a-fill"></div></div>
+    <span class="ed-val" id="ed-a-val"></span>
+  </div>
+  <div class="ed-row">
+    <span class="ed-label">mood.v</span>
+    <div class="ed-bar-bg"><div class="ed-bar-fill" id="ed-mv-fill"></div></div>
+    <span class="ed-val" id="ed-mv-val"></span>
+  </div>
+  <div class="ed-row">
+    <span class="ed-label">mood.a</span>
+    <div class="ed-bar-bg"><div class="ed-bar-fill" id="ed-ma-fill"></div></div>
+    <span class="ed-val" id="ed-ma-val"></span>
+  </div>
+  <div class="ed-event" id="ed-event">—</div>
+</div>
+
+<!-- 情感气泡：文字 -->
+<div class="emotion-text-bubble" id="emotion-text-bubble"><span id="emotion-text-content"></span></div>
+
+<!-- 拖动插画时弹出的废纸篓，悬停后松手即删除 -->
+<div id="illus-trash">🗑</div>
+
+<!-- 情感气泡：插画为动态创建，不在此预置 -->
 </div><!-- /#card -->
 
 <!-- usage-data.js is generated by update-usage.js -->
@@ -1614,6 +1952,31 @@ body.header-music-on .header-cover { display: inline-block; }
 <script src="usage-data.js" onerror="console.log('usage-data.js not found, using mock data')"></script>
 
 <script>
+// ── localStorage ↔ 服务端 store.json 双向同步 ─────────────────
+(function () {
+  let _t;
+  const _orig = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (k, v) {
+    _orig.call(this, k, v);          // 本地写入照常
+    if (this !== localStorage) return;
+    if (!window.__storeReady) return; // 数据恢复完成前绝不回写，防止用不完整快照覆盖 store.json
+    clearTimeout(_t);
+    _t = setTimeout(() => {
+      const all = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        all[key] = localStorage.getItem(key);
+      }
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Card': '1' },
+        body: JSON.stringify(all),
+      }).catch(() => {});
+    }, 800);
+  };
+  // 兜底：即使 emotion.js 没加载/restoreIllus 没跑，3s 后也放行，避免永久不保存
+  setTimeout(() => { window.__storeReady = true; }, 3000);
+})();
 // ── 卡片等比缩放适配窗口 ───────────────────────────────────
 function fitCard() {
   const s = Math.min(window.innerWidth / 800, window.innerHeight / 480);
@@ -1695,6 +2058,125 @@ document.querySelectorAll('#themeSeg button').forEach(b => {
 document.getElementById('settingsGear').addEventListener('click', () => {
   document.getElementById('settingsBar').classList.toggle('open');
 });
+
+// ── settings 标签页切换（通用｜快捷键）──────────────────────
+document.querySelectorAll('.settings-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const name = tab.dataset.tab;
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.settings-page').forEach(p => { p.hidden = p.dataset.page !== name; });
+  });
+});
+
+// ── 全局快捷键自定义（点击录制 → 存 localStorage.cardShortcuts → POST reload）──
+(function () {
+  // 默认值必须与 main.js 的 SHORTCUT_DEFAULTS 一致
+  const SC_DEFAULTS = {
+    toggleCard:  'CommandOrControl+Shift+C',
+    musicToggle: 'CommandOrControl+Shift+P',
+    // musicNext:   'CommandOrControl+Shift+Right',   // 暂时停用
+    genIllust:   'CommandOrControl+Shift+G',
+    // musicLike:   'CommandOrControl+Shift+L',       // 暂时停用
+    volumeUp:    'CommandOrControl+Alt+Up',
+    volumeDown:  'CommandOrControl+Alt+Down',
+  };
+  const loadBinds = () => {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('cardShortcuts') || '{}'); } catch {}
+    return { ...SC_DEFAULTS, ...s };
+  };
+  // accelerator → 人类可读符号
+  const pretty = a => !a ? '未设置' : a
+    .replace('CommandOrControl', '⌘').replace('Command', '⌘').replace('Control', '⌃')
+    .replace('Alt', '⌥').replace('Shift', '⇧').replace('Right', '→').replace('Left', '←')
+    .replace('Up', '↑').replace('Down', '↓').replace('Space', '␣').replace(/\+/g, '');
+  // KeyboardEvent → Electron accelerator（必须含修饰键）
+  const toAccel = e => {
+    if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return null;
+    const parts = [];
+    if (e.metaKey || e.ctrlKey) parts.push('CommandOrControl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (!parts.length) return null;   // 必须有修饰键，否则全局键太霸道
+    // 用 e.code（物理键）而非 e.key：避免 Option+字母 被合成成死键字符（如 Opt+X→'≈'）录不到
+    let k;
+    if (/^Key[A-Z]$/.test(e.code))        k = e.code.slice(3);   // KeyX → X
+    else if (/^Digit[0-9]$/.test(e.code)) k = e.code.slice(5);   // Digit1 → 1
+    else if (e.code.startsWith('Arrow'))  k = e.code.slice(5);   // ArrowRight → Right
+    else if (e.key === ' ')               k = 'Space';
+    else if (e.key.length === 1)          k = e.key.toUpperCase();
+    else                                  k = e.key;             // F1.. 等
+    parts.push(k);
+    return parts.join('+');
+  };
+  const renderKeys = () => {
+    const b = loadBinds();
+    document.querySelectorAll('.sc-row').forEach(row => {
+      const btn = row.querySelector('.sc-key');
+      if (!btn || !row.dataset.action) return;   // 跳过无快捷键按钮的行（如音量滑条行）
+      btn.textContent = pretty(b[row.dataset.action]);
+    });
+  };
+  const flash = (btn, cls) => { btn.classList.add(cls); setTimeout(() => btn.classList.remove(cls), 900); };
+  const saveAndReload = (action, accel) => {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('cardShortcuts') || '{}'); } catch {}
+    if (accel) s[action] = accel; else delete s[action];   // 清空=回落默认（main 仍用 SC_DEFAULTS）
+    localStorage.setItem('cardShortcuts', JSON.stringify(s));   // 触发 store 同步
+    renderKeys();
+    fetch('/api/shortcuts/reload', { headers: { 'X-Card': '1' } })
+      .then(r => r.json())
+      .then(d => {
+        const st = d?.results?.[action];
+        const btn = document.querySelector(`.sc-row[data-action="${action}"] .sc-key`);
+        if (btn && st === 'fail') flash(btn, 'fail-flash');   // 注册失败（系统占用/非法）
+        else if (btn) flash(btn, 'ok-flash');
+      })
+      .catch(() => {});
+  };
+
+  let _recording = null;   // { action, btn }
+  document.querySelectorAll('.sc-row .sc-key').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (_recording) _recording.btn.classList.remove('recording');
+      _recording = { action: btn.closest('.sc-row').dataset.action, btn };
+      btn.textContent = '按下组合键…';
+      btn.classList.add('recording');
+    });
+  });
+  window.addEventListener('keydown', e => {
+    if (!_recording) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === 'Escape') { _recording.btn.classList.remove('recording'); _recording = null; renderKeys(); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      const a = _recording.action; _recording.btn.classList.remove('recording'); _recording = null;
+      saveAndReload(a, '');   // 清空 → 回落默认值
+      return;
+    }
+    const accel = toAccel(e);
+    if (!accel) return;   // 只按了修饰键，继续等
+    const a = _recording.action; _recording.btn.classList.remove('recording'); _recording = null;
+    saveAndReload(a, accel);
+  }, true);
+
+  renderKeys();
+})();
+
+// ── card 音量滑条（与 window.cardVolume 双向同步）──────────────
+(function () {
+  const slider = document.getElementById('cardVolumeSlider');
+  const valEl  = document.getElementById('cardVolumeVal');
+  if (!slider) return;
+  const showPct = v => { const p = Math.round(v * 100); slider.value = p; if (valEl) valEl.textContent = p + '%'; };
+  // 快捷键/初始化改了音量 → 回调同步滑条
+  window.onCardVolumeChange = showPct;
+  // 拖动滑条 → 设音量
+  slider.addEventListener('input', () => { window.cardVolume?.set(slider.value / 100); if (valEl) valEl.textContent = slider.value + '%'; });
+  // 初值：cardVolume 就绪用它，否则读存档/默认 30%
+  const init = window.cardVolume ? window.cardVolume.get()
+    : (parseFloat(localStorage.getItem('cardVolume')) >= 0 ? parseFloat(localStorage.getItem('cardVolume')) : 0.3);
+  showPct(init);
+})();
 
 applyTheme();
 
@@ -1991,18 +2473,21 @@ applyDnd();
   const toggleBtn     = document.getElementById('musicToggleBtn');
 
   let lastArtwork = '';
+  const stickerBtn = document.getElementById('musicStickerBtn');
 
   // 自绘图标：三角(播放)在圆内光学居中；双竖条(暂停)
   const ICON_PLAY  = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M5 3.2 L13 8 L5 12.8 Z" fill="currentColor"/></svg>';
   const ICON_PAUSE = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="4.6" y="3.6" width="2.5" height="8.8" rx="0.6" fill="currentColor"/><rect x="8.9" y="3.6" width="2.5" height="8.8" rx="0.6" fill="currentColor"/></svg>';
   const setToggleIcon = playing => { if (toggleBtn) toggleBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY; };
 
-  // 播放/暂停按钮：乐观更新——立刻翻转 UI，不等后端；请求后台发，稍后对齐真实状态
-  toggleBtn?.addEventListener('click', () => {
-    if (snapshot) snapshot.playing = !snapshot.playing;
-    setToggleIcon(snapshot ? snapshot.playing : false);
-    fetch('/api/music/toggle', { headers: { 'X-Card': '1' } }).catch(() => {});
-    setTimeout(pollMusic, 600);   // 之后用真实状态校正
+  // 播放/暂停按钮：统一走 cardMusicToggle（URL 贴纸激活时控 card 播放器，否则控系统媒体）
+  toggleBtn?.addEventListener('click', () => { window.cardMusicToggle?.(); });
+
+  // 贴纸按钮：手动贴上当前歌曲专辑封面（需 neteaseId 已就位，即 searchSong 完成后）
+  stickerBtn?.addEventListener('click', () => {
+    if (!snapshot?.neteaseId || !snapshot?.artwork || snapshot.artwork.startsWith('data:')) return;
+    window.emotionBubble?.forceShowMusicSticker?.(
+      snapshot.neteaseId, snapshot.artwork, snapshot.title || '', snapshot.artist || '');
   });
 
   // 根据 position（秒）从 lyrics 数组里找当前行索引
@@ -2045,6 +2530,8 @@ applyDnd();
     playDotEl.classList.toggle('playing', !!d.playing);
     if (headerSong) headerSong.textContent = d.title || '';
     if (toggleBtn) { toggleBtn.classList.add('show'); setToggleIcon(d.playing); }
+    // 贴纸按钮：neteaseId 就位才显示（CDN 封面已拿到，可安全贴纸）
+    if (stickerBtn) stickerBtn.classList.add('show');
 
     // 封面：URL 变化才更新（切歌、或异步换成网易云高清图时）
     if (d.artwork !== lastArtwork) {
@@ -2065,7 +2552,9 @@ applyDnd();
     }
 
     renderLyrics(d.lyrics, livePos(d));
+    window.emotionEngine?.onMusicChange(d);
   }
+  window.renderMusicNow = renderMusic;   // 供 emotion.js 覆写音乐模块显示
 
   function renderNoMusic() {
     snapshot = null;
@@ -2073,6 +2562,7 @@ applyDnd();
     artistEl.textContent = '—';
     playDotEl.classList.remove('playing');
     if (toggleBtn) toggleBtn.classList.remove('show');
+    if (stickerBtn) stickerBtn.classList.remove('show');
     coverEl.classList.remove('loaded');
     coverEl.src = '';
     if (headerSong)  headerSong.textContent = '';
@@ -2082,6 +2572,8 @@ applyDnd();
   }
 
   async function pollMusic() {
+    // URL 贴纸歌为当前音源时（含暂停态）不轮询，避免覆盖自定义显示、回切网易云
+    if (window.cardMusicState?.active) return;
     // 音乐栏可见，或顶栏歌曲激活时才轮询
     const paneVisible = document.getElementById('paneMusic')?.style.display !== 'none';
     const headerOn    = document.body.classList.contains('header-music-on');
@@ -2232,11 +2724,18 @@ function makeDivider() {
     e.preventDefault();
     const startX = e.clientX;
     const startW = t.pane.offsetWidth;
-    // 弹性栏至少保留 180px
-    const flexPane = panes().find(p => !isFixedPane(p));
-    const maxW = startW + (flexPane ? flexPane.offsetWidth - 180 : 100);
     // 卡片整体被 scale 过，屏幕位移要除以缩放系数还原成卡片坐标
     const sc = document.getElementById('card').getBoundingClientRect().width / 800 || 1;
+
+    // 分隔线另一侧的栏：若是固定栏则联动缩放（grow left ↔ shrink right），
+    // 若是 fill 弹性栏则让 CSS flex 自然吸收（不需手动改宽）
+    const otherDir = t.sign > 0 ? 'nextElementSibling' : 'previousElementSibling';
+    const other = visSibling(d, otherDir);
+    const otherIsFixed = other && !other.classList.contains('pane-fill');
+    const startOtherW = otherIsFixed ? other.offsetWidth : 0;
+    const otherMin = other?.classList.contains('pane-fill') ? 180 : 150;
+    const otherAvail = other ? Math.max(0, other.offsetWidth - otherMin) : 100;
+    const maxW = startW + otherAvail;
 
     d.setPointerCapture(e.pointerId);   // 捕获后甩出 1px 线外照样收到事件
     d.classList.add('dragging');
@@ -2245,6 +2744,8 @@ function makeDivider() {
     const onMove = ev => {
       const w = Math.max(150, Math.min(maxW, startW + t.sign * (ev.clientX - startX) / sc));
       t.pane.style.width = w + 'px';
+      // 另一侧是固定栏时同步反向调整，避免第三条分隔线意外位移
+      if (otherIsFixed) other.style.width = Math.max(150, startOtherW - (w - startW)) + 'px';
     };
     d.addEventListener('pointermove', onMove);
     d.addEventListener('pointerup', () => {
@@ -2581,7 +3082,11 @@ function escHtml(s) {
 
 function toggleTodo(id) {
   const t = todos.find(t => t.id === id);
-  if (t) { t.done = !t.done; saveTodos(); renderTodos(); }
+  if (t) {
+    t.done = !t.done;
+    if (t.done) window.emotionEngine?.onTodoDone();
+    saveTodos(); renderTodos();
+  }
 }
 
 // 删除单条待办（hover 浮现的 ×）
@@ -2708,6 +3213,8 @@ function renderUsage(data) {
 
   // 通知桌宠评估用量报警（5 小时额度）
   window.petUsageAlarm?.(data.pct5h ?? null, !!data.isStale);
+  // 通知情感引擎
+  window.emotionEngine?.onUsage(data.pct5h ?? null);
 }
 
 // 重置倒计时每分钟刷新一次显示
@@ -2766,6 +3273,9 @@ setInterval(() => {
   else initWeather();   // 首次定位失败/未授权时重试
 }, 5 * 60 * 1000);
 </script>
+
+<script src="emotion.js"></script>
+
 
 <script type="module">
 // ── 桌宠：年 ─────────────────────────────────────────────────
@@ -2890,6 +3400,21 @@ async function initPet() {
   window.petBones = () => skeleton.bones.map(b => b.data.name);
   window.petSlots = () => skeleton.slots.map(s => s.data.name);
   window.petAnims = () => sd.animations.map(a => a.name);   // 列出模型里全部动画名
+  // 年的实时 CSS 坐标（供气泡定位用）：Spine y 向上，转成 CSS y 向下
+  // headCssX/Y = 头骨顶端精确位置（bone.worldX + a*length），坐姿/站姿自动跟随
+  window.petPos = () => {
+    const baseX = skeleton.x / PR;
+    const baseY = CARD_H - skeleton.y / PR;
+    if (!bHead) return { cssX: baseX, cssY: baseY, headCssX: baseX, headCssY: baseY - 148 };
+    const tipWX = bHead.worldX + bHead.a * bHead.data.length;
+    const tipWY = bHead.worldY + bHead.c * bHead.data.length;
+    return {
+      cssX: baseX,
+      cssY: baseY,
+      headCssX: tipWX / PR,
+      headCssY: CARD_H - tipWY / PR,
+    };
+  };
 
   // ── 程序化躯体表达（路线 A）：动画里没有的两个新动作 ──────────
   // ① 看向光标：鼠标靠近时上半身+头转向光标  ② 拖拽甩动：被拎着移动时身体随惯性摆
@@ -3072,6 +3597,24 @@ async function initPet() {
       c.compress = c._comp; c.stretch = c._str;
     }
   }
+  // Sit 动画的 DrawOrderTimeline 把 R_Calf/R_Foot 放到最底层、L 夹在中间，
+  // 导致跷二郎腿时右腿小腿压在左腿下面。Sit2（Sit+Relax 混合）由于 Relax 的
+  // drawOrder 覆盖而正确。这里每帧强制修正为 Sit2 的正确顺序：左腿整体在下、右腿整体在上。
+
+
+  const SIT_LEG_ORDER = ['F_L_Calf_01','F_L_Foot_01','F_L_Leg_01','F_R_Calf_01','F_R_Foot_01','F_R_Leg_01'];
+  function fixSitDrawOrder() {
+    if (curAnim !== 'Sit') return;
+    const do_ = skeleton.drawOrder;
+    // 找出这 6 个槽在 drawOrder 里的位置（顺序不定，按名字定位）
+    const indices = SIT_LEG_ORDER.map(name => do_.findIndex(s => s.data.name === name));
+    if (indices.some(i => i < 0)) return;   // 槽不存在则跳过
+    // 取出 6 个槽对象（当前顺序），按正确顺序写回原来的 6 个位置
+    const slots  = indices.map(i => do_[i]);
+    const sorted = indices.slice().sort((a, b) => a - b);  // 位置从小到大
+    SIT_LEG_ORDER.forEach((_, k) => { do_[sorted[k]] = slots[k]; });
+  }
+
   let dir     = -1; // -1 = 面向左，1 = 面向右
   state.setAnimation(0, curAnim, true);
 
@@ -3446,6 +3989,7 @@ async function initPet() {
   canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (mode === 'sleep') return;
+    window.emotionEngine?.onInteract();
     dragStart = { mx: e.clientX, my: e.clientY, sx: skeleton.x, sy: skeleton.y, moved: false };
     e.preventDefault();
   });
@@ -3634,6 +4178,7 @@ async function initPet() {
     state.apply(skeleton);
     applySit2Blend(delta);         // Sit2：上半身覆盖为 Relax（仅 curAnim==='Sit2' 时）
     applyExpression(now, delta);   // 程序化躯体表达：叠加在动画之上
+    fixSitDrawOrder();             // Sit 跷二郎腿层级修正（Sit 动画把 R 腿分拆到错误层级）
     skeleton.updateWorldTransform();
 
     shader.bind();
