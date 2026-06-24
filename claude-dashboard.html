@@ -1645,8 +1645,14 @@ body.header-music-on .header-cover { display: inline-block; }
         <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
       </div>
       -->
+      <!-- 暂时停用
       <div class="sc-row" data-action="genIllust">
         <span class="settings-label">生成插图</span>
+        <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
+      </div>
+      -->
+      <div class="sc-row" data-action="coverSticker">
+        <span class="settings-label">贴专辑封面</span>
         <button class="sc-key" title="点击后按下新组合键；Esc 取消，Backspace 清空"></button>
       </div>
       <!-- 暂时停用
@@ -2075,7 +2081,8 @@ document.querySelectorAll('.settings-tab').forEach(tab => {
     toggleCard:  'CommandOrControl+Shift+C',
     musicToggle: 'CommandOrControl+Shift+P',
     // musicNext:   'CommandOrControl+Shift+Right',   // 暂时停用
-    genIllust:   'CommandOrControl+Shift+G',
+    // genIllust:   'CommandOrControl+Shift+G',       // 暂时停用
+    coverSticker: 'CommandOrControl+Shift+S',
     // musicLike:   'CommandOrControl+Shift+L',       // 暂时停用
     volumeUp:    'CommandOrControl+Alt+Up',
     volumeDown:  'CommandOrControl+Alt+Down',
@@ -2483,12 +2490,13 @@ applyDnd();
   // 播放/暂停按钮：统一走 cardMusicToggle（URL 贴纸激活时控 card 播放器，否则控系统媒体）
   toggleBtn?.addEventListener('click', () => { window.cardMusicToggle?.(); });
 
-  // 贴纸按钮：手动贴上当前歌曲专辑封面（需 neteaseId 已就位，即 searchSong 完成后）
-  stickerBtn?.addEventListener('click', () => {
+  // 贴上当前歌曲专辑封面（按钮 + 快捷键共用）：需 neteaseId 已就位、封面是 CDN 高清图（非 base64）
+  window.cardCoverSticker = () => {
     if (!snapshot?.neteaseId || !snapshot?.artwork || snapshot.artwork.startsWith('data:')) return;
     window.emotionBubble?.forceShowMusicSticker?.(
       snapshot.neteaseId, snapshot.artwork, snapshot.title || '', snapshot.artist || '');
-  });
+  };
+  stickerBtn?.addEventListener('click', () => window.cardCoverSticker());
 
   // 根据 position（秒）从 lyrics 数组里找当前行索引
   function currIdx(lyrics, pos) {

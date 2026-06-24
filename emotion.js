@@ -663,12 +663,14 @@
     saveIllus();
   }
 
-  // 自动添加专辑封面贴纸（上限 10 张自动贴，满了删最旧自动贴）
-  function showMusicSticker(neteaseId, coverSrc, songTitle, songArtist, pos = null) {
+  // 自动添加专辑封面贴纸：30% 概率触发；总贴纸数 ≥ 10 时停止自然生成
+  // restore=true 时跳过概率/上限检查（恢复已存贴纸不应被随机踢掉）
+  function showMusicSticker(neteaseId, coverSrc, songTitle, songArtist, pos = null, restore = false) {
     if (illusList.some(o => o.neteaseId === String(neteaseId))) return;
-    // 只淘汰非手动贴纸
-    const autoOnes = illusList.filter(o => o.type === 'music' && !o.manual);
-    if (autoOnes.length >= 10) removeImage(autoOnes[0].id);
+    if (!restore) {
+      if (illusList.length >= 10) return;
+      if (Math.random() > 0.30) return;
+    }
     const id = showImage(coverSrc, 0, pos);
     _tagMusicEntry(id, neteaseId, songTitle, songArtist || '', false);
   }
@@ -698,7 +700,7 @@
             const entry = illusList.find(o => o.neteaseId === String(neteaseId));
             if (entry) { entry.el.style.left = x + 'px'; entry.el.style.top = y + 'px'; entry.el.style.setProperty('--illus-rot', `${rot ?? 0}deg`); }
           } else {
-            showMusicSticker(neteaseId, src, songTitle || '', songArtist || '', pos);
+            showMusicSticker(neteaseId, src, songTitle || '', songArtist || '', pos, true);
           }
         } else {
           showImage(src, 0, { x, y, rot: rot ?? 0 });

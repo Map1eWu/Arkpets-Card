@@ -2,6 +2,9 @@
 
 一块 800×480 的桌面信息卡片（Electron 应用）：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只有情感模型、会在界面横线之间跳来跳去的明日方舟桌宠「年」。
 
+> **平台说明**：基础功能（时钟、天气、待办、GPU 监控等）跨平台可用。以下功能**目前仅支持 macOS**：音乐（依赖 macOS Now Playing / `media-control`）、全局快捷键（Electron `globalShortcut` 在 macOS 上测试）、开机自启（macOS launchd）、Claude Code 用量监控（AppleScript 注入 Chrome）、本地图像生成（PyTorch MPS，M 系列芯片）。
+> 后续会做系统兼容
+
 <table width="100%">
   <tr>
     <td><img src="demon_img/demon1.png" width="100%" />
@@ -11,7 +14,7 @@
 
 ## 功能
 
-**信息面板**
+* [ ] **信息面板**
 
 - 时钟与日期
 - 实时天气：基于浏览器定位 + [Open-Meteo](https://open-meteo.com/) 免费 API，显示温度、湿度、风速、当日最高/最低温，每 5 分钟自动刷新
@@ -29,9 +32,9 @@
 
 **全局快捷键**
 
-- 显示/隐藏 card 窗口、播放暂停、下一首、生成插画、音量 ±5%
+- 显示/隐藏 card 窗口、播放暂停、贴/删专辑封面、生成插画（暂停用）、音量 ±5%
 - 快捷键可在设置栏「快捷键」页自定义（点击录制），支持即时重注册
-- 默认：`⌘⇧C` 显示/隐藏、`⌘⇧P` 播放暂停、`⌘⇧G` 生成插画、`⌘⌥↑/↓` 音量
+- 默认：`⌘⇧C` 显示/隐藏、`⌘⇧P` 播放暂停、`⌘⇧S` 贴/删专辑封面、`⌘⌥↑/↓` 音量
 
 **桌宠「年」**
 
@@ -48,7 +51,7 @@
 
 ```bash
 # 1. 配置
-cp .env.example .env   # 按需填写 ACCOUNT_LABEL 等
+cp .env.example .env   # 按需填写 NETEASE_COOKIE / GPU_HOST 等
 
 # 2. 安装依赖
 npm install                  # 包括 electron、@neteasecloudmusicapienhanced/api、jimp 等
@@ -63,6 +66,32 @@ brew install media-control   # 音乐功能依赖（见下）
 > **注意**：停止 card 时请用 `start.sh`（它用 `lsof -ti tcp:3000 -sTCP:LISTEN` 只杀监听方），勿直接 `pkill -f Electron`——VS Code 等也是 Electron 进程，会被误杀。
 
 **开机自启（macOS）**：设置栏（右上角齿轮）里打开"开机自启"开关即可——由本地 server 在 `~/Library/LaunchAgents/` 写入 launchd 配置，登录时自动执行 `start.sh`；关闭开关即移除，不留残留。
+
+## 本地模型（情感系统）
+
+情感功能涉及三个模型，均**可选**——缺失时自动降级，不影响其他功能。
+
+| 用途 | 模型 | 运行方式 | 最低内存 | 降级行为 |
+|------|------|----------|----------|----------|
+| 独白 / 心境 / 图片 prompt | `qwen2.5:7b` | Ollama | ~6 GB | 跳过 LLM，用情绪模板兜底 |
+| 日常闲话 / 单击后续 | `qwen2.5:1.5b` | Ollama | ~2 GB | 直接从原作语录池随机抽取 |
+| 心情插画生成 | `gsdf/Counterfeit-V3.0` + `lcm-lora-sdv1-5` | Python / MPS | ~6 GB | 只出文字气泡，不生成图片 |
+
+**安装 Ollama 模型：**
+
+```bash
+ollama pull qwen2.5:7b
+ollama pull qwen2.5:1.5b
+```
+
+**安装图像依赖（M 系列 Mac，MPS 加速）：**
+
+```bash
+pip3 install diffusers transformers accelerate torch pillow peft
+# 首次出图时自动下载模型（~2.5 GB，缓存至 ~/.cache/huggingface）
+```
+
+**纯无模型运行（0 内存开销）：** 关闭 Ollama + 不安装 Python 依赖即可。年的单击会输出原作语录（`NIAN_QUOTES`，10 条硬编码台词），双击无反应。所有其他功能（时钟、天气、音乐、待办、GPU 监控等）不受影响。
 
 ## 音乐
 
@@ -94,6 +123,7 @@ brew install media-control   # 音乐功能依赖（见下）
 ```
 */5 * * * * cd /path/to/card && node update-usage.js
 ```
+
 ## 更换桌宠模型
 
 模型与 [ArkPets-Web](https://github.com/fuyufjh/ArkPets-Web) 同源，来自 [Ark-Models](https://github.com/isHarryh/Ark-Models) 模型库。其 `models/` 目录下每个文件夹是一只干员基建小人，由 `.skel` + `.atlas` + `.png` 三件套组成（具体清单见仓库根目录的 `models_data.json`）。

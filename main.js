@@ -21,7 +21,8 @@ const SHORTCUT_DEFAULTS = {
   toggleCard:  'CommandOrControl+Shift+C',
   musicToggle: 'CommandOrControl+Shift+P',
   // musicNext:   'CommandOrControl+Shift+Right',   // 暂时停用
-  genIllust:   'CommandOrControl+Shift+G',
+  // genIllust:   'CommandOrControl+Shift+G',       // 暂时停用
+  coverSticker: 'CommandOrControl+Shift+S',
   // musicLike:   'CommandOrControl+Shift+L',       // 暂时停用
   volumeUp:    'CommandOrControl+Alt+Up',
   volumeDown:  'CommandOrControl+Alt+Down',
@@ -39,6 +40,7 @@ function runAction(action) {
     case 'musicNext':   runInRenderer('window.cardMusicNext?.()');   break;
     case 'musicLike':   runInRenderer('window.cardMusicLike?.()');   break;
     case 'genIllust':   runInRenderer('window.emotionBubble?.manualCaption?.()'); break;
+    case 'coverSticker': runInRenderer('window.cardCoverSticker?.()'); break;
     case 'volumeUp':    runInRenderer('window.cardVolume?.step(0.05)');  break;
     case 'volumeDown':  runInRenderer('window.cardVolume?.step(-0.05)'); break;
   }

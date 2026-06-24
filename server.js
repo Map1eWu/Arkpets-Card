@@ -220,62 +220,219 @@ function fetchImage(url) {
   });
 }
 
-// 系统缩略图与候选封面的相似度：感知哈希(抗缩放) + 像素差(防误判)，0=完全一致
-async function coverDist(thumbImg, picUrl) {
+// 4×4×4=64 桶的归一化 RGB 颜色直方图（在 32×32 上统计，便宜且抓配色）。
+// 颜色直方图对缩放/JPEG 压缩鲁棒——封面主色调差异大，是结构特征之外的独立信号。
+function colorHist(img) {
+  const s = img.clone().resize(32, 32);
+  const bins = new Float64Array(64);
+  const d = s.bitmap.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i] >> 6, g = d[i + 1] >> 6, b = d[i + 2] >> 6;   // 各通道压到 0..3
+    bins[(r << 4) | (g << 2) | b]++;
+  }
+  const n = (s.bitmap.width * s.bitmap.height) || 1;
+  for (let i = 0; i < bins.length; i++) bins[i] /= n;
+  return bins;
+}
+// 两直方图的 L1/2 距离，范围 0..1（0=配色完全一致）
+function histDist(h1, h2) {
+  let sum = 0;
+  for (let i = 0; i < h1.length; i++) sum += Math.abs(h1[i] - h2[i]);
+  return sum / 2;
+}
+
+// 系统缩略图与候选封面的相似度，0=完全一致。三路独立信号加权：
+//   pHash(结构) + 颜色直方图(配色) + 像素差(细节)。
+// 候选下载放大到 150y150（原 64y64 太糊，把本就小的系统缩略图信息进一步丢了）。
+async function coverDist(thumbImg, picUrl, thumbHist) {
   try {
-    const url = picUrl.replace(/^http:/, 'https:') + '?param=64y64';
-    const cand = (await Jimp.read(await fetchImage(url))).resize(64, 64);
-    const ref  = thumbImg.clone().resize(64, 64);
-    return 0.5 * Jimp.distance(ref, cand) + 0.5 * Jimp.diff(ref, cand).percent;
+    const url = picUrl.replace(/^http:/, 'https:') + '?param=150y150';
+    const candImg = await Jimp.read(await fetchImage(url));
+    const phash = Jimp.distance(thumbImg, candImg);                 // 0..1，内部各自 pHash
+    const hist  = histDist(thumbHist || colorHist(thumbImg), colorHist(candImg));
+    const pix   = Jimp.diff(thumbImg.clone().resize(64, 64), candImg.clone().resize(64, 64)).percent;
+    return 0.45 * phash + 0.35 * hist + 0.20 * pix;
   } catch { return 1; }
 }
 
+// 抓 JSON（免 cookie 的公开接口用）
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error('http ' + res.statusCode)); }
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.setTimeout(4000, () => req.destroy(new Error('timeout')));
+  });
+}
+
+// 网易云桌面 app 的在线播放缓存目录。文件名形如
+//   {songId}-_-_{码率}-_-_{hash}.uc!
+// 开头数字就是网易云 songId（.info 是加密 blob，不用碰）。
+const NETEASE_CACHE_DIR = path.join(process.env.HOME || '',
+  'Library/Containers/com.netease.163music/Data/Library/Caches/online_play_cache');
+const CACHE_INDEX_FILE = path.join(__dirname, 'data', 'netease_cache_index.json');
+
+// 持久化索引：{ songId: {name, artist, picUrl, duration} }。文件名只有 songId，没有歌名，
+// 故需用公开接口解析一次。索引随用随补、可落盘，重启后只解析新增的歌。
+let _cacheIndex   = null;            // songId → 元数据
+let _cacheTitleMap = null;           // norm(歌名) → [entry...]，O(1) 查名
+let _cacheSyncing = null;            // 同步去重（防并发重复解析）
+
+function rebuildTitleMap() {
+  _cacheTitleMap = new Map();
+  for (const [id, e] of Object.entries(_cacheIndex)) {
+    const k = norm(e.name);
+    if (!k) continue;
+    const arr = _cacheTitleMap.get(k) || [];
+    arr.push({ id, ...e });
+    _cacheTitleMap.set(k, arr);
+  }
+}
+
+// 扫缓存目录，让索引精确镜像「当前缓存里的歌」：剪掉已淘汰的、补解析新增的、落盘。
+function syncCacheIndex() {
+  if (_cacheSyncing) return _cacheSyncing;
+  _cacheSyncing = (async () => {
+    if (!_cacheIndex) {
+      try { _cacheIndex = JSON.parse(fs.readFileSync(CACHE_INDEX_FILE, 'utf8')); }
+      catch { _cacheIndex = {}; }
+      rebuildTitleMap();
+    }
+    let ids;
+    try {
+      ids = new Set(fs.readdirSync(NETEASE_CACHE_DIR)
+        .filter(f => f.endsWith('.uc!'))
+        .map(f => f.split('-_-_')[0])
+        .filter(x => /^\d+$/.test(x)));
+    } catch { return; }   // 读不到目录（权限/不存在）：保持现有索引，交给图像比对兜底
+    let changed = false;
+    // 剪枝：缓存已淘汰的 songId 从索引删掉，避免同名老歌误命中
+    for (const k of Object.keys(_cacheIndex)) {
+      if (!ids.has(k)) { delete _cacheIndex[k]; changed = true; }
+    }
+    // 补解析：索引里没有的 songId，公开接口批量取（50/次）
+    const missing = [...ids].filter(id => !_cacheIndex[id]);
+    for (let i = 0; i < missing.length; i += 50) {
+      const chunk = missing.slice(i, i + 50);
+      try {
+        const data = await fetchJSON(
+          `https://music.163.com/api/song/detail/?ids=${encodeURIComponent('[' + chunk.join(',') + ']')}`);
+        for (const s of (data?.songs || [])) {
+          _cacheIndex[s.id] = {
+            name: s.name,
+            artist: (s.artists || []).map(a => a.name).join(' / '),
+            picUrl: s.album?.picUrl || null,
+            duration: Math.round((s.duration || 0) / 1000),
+          };
+          changed = true;
+        }
+      } catch {}
+    }
+    if (changed) {
+      rebuildTitleMap();
+      try {
+        fs.mkdirSync(path.dirname(CACHE_INDEX_FILE), { recursive: true });
+        fs.writeFileSync(CACHE_INDEX_FILE, JSON.stringify(_cacheIndex));
+      } catch {}
+    }
+  })().finally(() => { _cacheSyncing = null; });
+  return _cacheSyncing;
+}
+
+// 精确匹配：按歌名查全量索引（不再只看最近 8 首，重播老歌也命中），歌手+时长消歧。
+// 命中即 100% 准确，跳过封面模糊比对；没缓存/读不到目录时返回 null，退回图像比对。
+async function matchViaCache(title, artist, durationSec) {
+  try {
+    const nTitle = norm(title);
+    if (!nTitle) return null;
+    await syncCacheIndex();             // 增量同步（通常 0~1 首新歌）
+    const arr = _cacheTitleMap?.get(nTitle);
+    if (!arr || !arr.length) return null;
+
+    const nArtist = norm(artist);
+    const pick = arr.find(e => {
+      const artOk = !nArtist || norm(e.artist).includes(nArtist) || nArtist.includes(norm(e.artist).split('/')[0]);
+      const durOk = durationSec <= 0 || !e.duration || Math.abs(e.duration - durationSec) <= 3;
+      return artOk && durOk;
+    }) || (arr.length === 1 ? arr[0] : null);
+    if (!pick) return null;
+
+    let cover = pick.picUrl || null;
+    if (cover) cover = cover.replace(/^http:/, 'https:') + '?param=300y300';
+    return { id: Number(pick.id), cover, confident: true };
+  } catch { return null; }
+}
+
 // 搜索歌曲，锁定「正在播放的那一版」。
-// 思路：先按 专辑名/歌手/时长 预排序；若字符串不够确定且有系统缩略图，
-// 就用缩略图当指纹，对候选封面做图像比对，选最像的那一版。
+// 优先走本地缓存目录精确匹配（matchViaCache）；拿不到再退回：
+// 按 专辑名/歌手/时长 预排序 → 系统缩略图做封面图像比对（带分离度判据）。
 // 返回 { id, cover, confident }：confident 时可放心用网易云高清封面替换糊图。
 async function searchSong(title, artist, durationSec, album, thumbBuf) {
   try {
+    const cached = await matchViaCache(title, artist, durationSec);
+    if (cached) return cached;   // 本地缓存命中 → 100% 准确，跳过模糊比对
+
     const r = await cloudsearch({ keywords: `${title} ${artist}`.trim(), limit: 15 });
     const songs = r?.body?.result?.songs || [];
     if (!songs.length) return null;
 
     const nAlbum  = norm(album);
     const nArtist = norm(artist);
+    const nTitle  = norm(title);
+
+    // 歌手命中：支持部分包含（处理 featured/合唱 格式差异）
+    const artistMatch = (s) => {
+      if (!nArtist) return false;
+      return (s.ar || []).some(a => {
+        const an = norm(a.name);
+        return an === nArtist || (an.length >= 2 && nArtist.includes(an)) || (nArtist.length >= 2 && an.includes(nArtist));
+      });
+    };
 
     const scored = songs.map(s => {
       const dur      = (s.dt || 0) / 1000;
       const durDiff  = durationSec > 0 ? Math.abs(dur - durationSec) : 999;
       const albumHit = nAlbum  && norm(s.al?.name) === nAlbum;
-      const artHit   = nArtist && (s.ar || []).some(a => norm(a.name) === nArtist);
-      const score = (albumHit ? 1000 : 0) + (artHit ? 100 : 0) - durDiff;
-      return { s, durDiff, albumHit, score };
+      const artHit   = artistMatch(s);
+      const titleHit = nTitle  && norm(s.name) === nTitle;
+      const score = (albumHit ? 1000 : 0) + (artHit ? 200 : 0) + (titleHit ? 50 : 0) - durDiff;
+      return { s, durDiff, albumHit, artHit, titleHit, score };
     }).sort((a, b) => b.score - a.score);
 
     let best = scored[0];
     if (!best) return null;
 
-    // 字符串快速路径：专辑名精确命中且时长≤3s，直接采用，省去图像下载
+    // 字符串快速路径：专辑名+歌手名双命中且时长≤3s
     let imgConfident = false;
-    const strConfident = best.albumHit && best.durDiff <= 3;
+    const strConfident = best.albumHit && best.artHit && best.durDiff <= 3;
 
     if (!strConfident && thumbBuf) {
       let thumbImg = null;
       try { thumbImg = await Jimp.read(thumbBuf); } catch {}
       if (thumbImg) {
+        const thumbHist = colorHist(thumbImg);   // 缩略图直方图只算一次，传给每个候选
         // 只比前若干个、且有封面的候选，控制下载量
         const cands = scored.slice(0, 8).filter(c => c.s.al?.picUrl);
         const dists = await Promise.all(
-          cands.map(async c => ({ c, d: await coverDist(thumbImg, c.s.al.picUrl) })));
+          cands.map(async c => ({ c, d: await coverDist(thumbImg, c.s.al.picUrl, thumbHist) })));
         dists.sort((a, b) => a.d - b.d);
-        if (dists.length && dists[0].d <= 0.20) {   // 足够像 → 锁定该版本
+        // 分离度判据：最优解既要绝对够像(≤0.18)，又要明显甩开第二名(<second*0.6)。
+        // 直击「压线错配」——错配跟所有候选都不太像、甩不开第二名；对配鹤立鸡群。
+        const d0 = dists[0]?.d ?? 1;
+        const d1 = dists[1]?.d ?? 1;
+        if (dists.length && d0 <= 0.18 && (dists.length < 2 || d0 < d1 * 0.6)) {
           best = dists[0].c;
           imgConfident = true;
         }
       }
     }
 
-    const confident = strConfident || imgConfident || best.durDiff <= 2;
+    // 去掉弱条件 `|| best.durDiff <= 2`：时长相近但专辑/图像均未命中时不应换封面
+    const confident = strConfident || imgConfident;
     let cover = best.s.al?.picUrl || null;
     if (cover) cover = cover.replace(/^http:/, 'https:') + '?param=300y300';
 
