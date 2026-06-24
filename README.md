@@ -5,11 +5,17 @@
 > **平台说明**：基础功能（时钟、天气、待办、GPU 监控等）跨平台可用。以下功能**目前仅支持 macOS**：音乐（依赖 macOS Now Playing / `media-control`）、全局快捷键（Electron `globalShortcut` 在 macOS 上测试）、开机自启（macOS launchd）、Claude Code 用量监控（AppleScript 注入 Chrome）、本地图像生成（PyTorch MPS，M 系列芯片）。
 > 后续会做系统兼容
 
-<table width="100%">
+* [ ] <table width="100%">
+  
   <tr>
     <td><img src="demon_img/demon1.png" width="100%" />
     <td><img src="demon_img/demon7.png" width="100%" />
   <tr>
+  <tr>
+    <td><img src="demon_img/demon8.png" width="100%" />
+    <td><img src="demon_img/demon9.png" width="100%" />
+  <tr>
+
 </table>
 
 ## 功能

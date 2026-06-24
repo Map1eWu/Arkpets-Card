@@ -2266,7 +2266,7 @@ applyDnd();
   const NOTE_KEY = 'claude-dash-note';
   const ta = document.getElementById('textArea');
   if (ta) {
-    ta.value = localStorage.getItem(NOTE_KEY) || '';
+    ta.value = localStorage.getItem(NOTE_KEY) ?? '随手记点什么…\n这里的内容会自动保存，刷新不丢。';
     let t;
     ta.addEventListener('input', () => {
       clearTimeout(t);
