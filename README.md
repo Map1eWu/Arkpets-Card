@@ -12,15 +12,15 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
-<p><i>部分功能暂时仅支持 macOS</i></p>
+<sub><i>部分功能暂时仅支持 macOS</i></sub>
 
 </div>
 
 ---
 
-* [ ] <table width="100%">
-* [ ] 
-  <tr>
+<table width="100%">
+
+<tr>
     <td><img src="demon_img/demon1.png" width="100%" />
     <td><img src="demon_img/demon7.png" width="100%" />
   <tr>
