@@ -1,12 +1,25 @@
-# Arkpets-Card
+<div align="center">
 
-一块 800×480 的桌面信息卡片（Electron 应用）：时钟 / 天气 + 待办事项 + Claude Code 用量监控 + 网易云音乐 + GPU 监控，以及一只有情感模型、会在界面横线之间跳来跳去的明日方舟桌宠「年」。
+<h1>Arkpets-Card</h1>
 
-> **平台说明**：基础功能（时钟、天气、待办、GPU 监控等）跨平台可用。以下功能**目前仅支持 macOS**：音乐（依赖 macOS Now Playing / `media-control`）、全局快捷键（Electron `globalShortcut` 在 macOS 上测试）、开机自启（macOS launchd）、Claude Code 用量监控（AppleScript 注入 Chrome）、本地图像生成（PyTorch MPS，M 系列芯片）。
-> 后续会做系统兼容
+<p>明日方舟桌宠「年」× 桌面信息卡片 | Arknights Desktop Pet + Info Dashboard</p>
+
+<p>
+  <img alt="Top Language" src="https://img.shields.io/badge/JavaScript-59%25-F7DF1E?logo=javascript&logoColor=black">
+  <img alt="HTML" src="https://img.shields.io/badge/HTML-40%25-E34F26?logo=html5&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-42-47848F?logo=electron&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
+</p>
+
+<p><i>部分功能暂时仅支持 macOS</i></p>
+
+</div>
+
+---
 
 * [ ] <table width="100%">
-  
+* [ ] 
   <tr>
     <td><img src="demon_img/demon1.png" width="100%" />
     <td><img src="demon_img/demon7.png" width="100%" />
